@@ -5,7 +5,7 @@
 #define JOLT_C_H_ 1
 
 #if defined(JPH_SHARED_LIBRARY_BUILD)
-#   if defined(_MSC_VER)
+#   if defined(_WIN32)
 #       define _JPH_EXPORT __declspec(dllexport)
 #   elif defined(__GNUC__)
 #       define _JPH_EXPORT __attribute__((visibility("default")))
@@ -14,7 +14,7 @@
 #       pragma warning "Unknown dynamic link import/export semantics."
 #   endif
 #elif defined(JPH_SHARED_LIBRARY_INCLUDE)
-#   if defined(_MSC_VER)
+#   if defined(_WIN32)
 #       define _JPH_EXPORT __declspec(dllimport)
 #   else
 #       define _JPH_EXPORT

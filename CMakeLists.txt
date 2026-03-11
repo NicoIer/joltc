@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.21 FATAL_ERROR)
 
 project(joltc CXX C)
 
@@ -318,11 +318,28 @@ set(SOURCE_FILES
 if (JPH_BUILD_SHARED)
 	add_library(${TARGET_NAME} SHARED ${SOURCE_FILES})
 else()
-	add_library(${TARGET_NAME} ${SOURCE_FILES})
+	# Include Jolt's object files directly so the final .a is self-contained (single file)
+	add_library(${TARGET_NAME} STATIC ${SOURCE_FILES} $<TARGET_OBJECTS:Jolt>)
 endif()
+
+# Remove Jolt archive output (libJolt.a) from final lib directory
+set_target_properties(Jolt PROPERTIES ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/_deps_lib")
 
 if(JPH_BUILD_SHARED)
 	target_compile_definitions(${TARGET_NAME} PRIVATE JPH_SHARED_LIBRARY_BUILD=1)
+
+	# Non-MSVC Windows: output DLL to lib/ directory (default goes to bin/)
+	if ("${CMAKE_SYSTEM_NAME}" STREQUAL "Windows" AND NOT MSVC)
+		set_target_properties(${TARGET_NAME} PROPERTIES
+			RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"           # DLL (.dll)
+			ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/_deps_lib"     # Import library (.dll.a) - not needed for C# DllImport
+		)
+		# MinGW (GCC): disable auto-export, only export __declspec(dllexport) symbols
+		# Zig (Clang): relies on -fvisibility=hidden which is already set globally
+		if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+			target_link_options(${TARGET_NAME} PRIVATE -Wl,--exclude-all-symbols)
+		endif()
+	endif()
 endif ()
 
 target_include_directories(${TARGET_NAME} PUBLIC
