@@ -20,6 +20,7 @@ namespace ObjectLayers {
 class PhysicsSystemTest : public ::testing::Test {
 protected:
     JPH_JobSystem* jobSystem = nullptr;
+    JPH_TempAllocator* tempAllocator = nullptr;
     JPH_BroadPhaseLayerInterface* broadPhaseLayerInterface = nullptr;
     JPH_ObjectVsBroadPhaseLayerFilter* objectVsBroadPhaseLayerFilter = nullptr;
     JPH_ObjectLayerPairFilter* objectLayerPairFilter = nullptr;
@@ -30,6 +31,9 @@ protected:
 
         jobSystem = JPH_JobSystemThreadPool_Create(nullptr);
         ASSERT_NE(jobSystem, nullptr);
+
+        tempAllocator = JPH_TempAllocator_Create(8 * 1024 * 1024);
+        ASSERT_NE(tempAllocator, nullptr);
 
         broadPhaseLayerInterface = JPH_BroadPhaseLayerInterfaceTable_Create(ObjectLayers::NUM_LAYERS, BroadPhaseLayers::NUM_LAYERS);
         JPH_BroadPhaseLayerInterfaceTable_MapObjectToBroadPhaseLayer(broadPhaseLayerInterface, ObjectLayers::NON_MOVING, BroadPhaseLayers::NON_MOVING);
@@ -61,6 +65,7 @@ protected:
 
     void TearDown() override {
         if (physicsSystem) JPH_PhysicsSystem_Destroy(physicsSystem);
+        if (tempAllocator) JPH_TempAllocator_Destroy(tempAllocator);
         if (jobSystem) JPH_JobSystem_Destroy(jobSystem);
         JPH_Shutdown();
     }
@@ -415,7 +420,7 @@ TEST_F(PhysicsSystemTest, Update_FallingBody) {
     JPH_BodyInterface_GetPosition(bodyInterface, bodyId, &initialPos);
 
     JPH_PhysicsSystem_OptimizeBroadPhase(physicsSystem);
-    JPH_PhysicsUpdateError error = JPH_PhysicsSystem_Update(physicsSystem, 1.0f / 60.0f, 1, jobSystem);
+    JPH_PhysicsUpdateError error = JPH_PhysicsSystem_Update(physicsSystem, 1.0f / 60.0f, 1, tempAllocator, jobSystem);
     EXPECT_EQ(error, JPH_PhysicsUpdateError_None);
 
     JPH_RVec3 newPos;

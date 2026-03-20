@@ -641,7 +641,6 @@ static JPH::IndexedTriangle ToIndexedTriangle(const JPH_IndexedTriangle& triangl
 
 // 10 MB was not enough for large simulation, let's use TempAllocatorMalloc
 static bool s_initialized = false;
-static TempAllocator* s_TempAllocator = nullptr;
 
 class JobSystemCallback final : public JPH::JobSystemWithBarrier
 {
@@ -737,6 +736,17 @@ void JPH_JobSystem_Destroy(JPH_JobSystem* jobSystem)
 	delete reinterpret_cast<JPH::JobSystem*>(jobSystem);
 }
 
+JPH_TempAllocator* JPH_TempAllocator_Create(uint32_t size)
+{
+	auto* allocator = new TempAllocatorImplWithMallocFallback(size);
+	return reinterpret_cast<JPH_TempAllocator*>(allocator);
+}
+
+void JPH_TempAllocator_Destroy(JPH_TempAllocator* allocator)
+{
+	delete reinterpret_cast<TempAllocatorImplWithMallocFallback*>(allocator);
+}
+
 bool JPH_Init()
 {
 	if (s_initialized)
@@ -754,8 +764,6 @@ bool JPH_Init()
 	// Register all Jolt physics types
 	JPH::RegisterTypes();
 
-	// Init temp allocator
-	s_TempAllocator = new TempAllocatorImplWithMallocFallback(8 * 1024 * 1024);
 	s_initialized = true;
 
 	return true;
@@ -765,8 +773,6 @@ void JPH_Shutdown(void)
 {
 	if (!s_initialized)
 		return;
-
-	delete s_TempAllocator; s_TempAllocator = nullptr;
 
 	// Unregisters all types with the factory and cleans up the default material
 	JPH::UnregisterTypes();
@@ -1061,10 +1067,11 @@ void JPH_PhysicsSystem_OptimizeBroadPhase(JPH_PhysicsSystem* system)
 	system->physicsSystem->OptimizeBroadPhase();
 }
 
-JPH_PhysicsUpdateError JPH_PhysicsSystem_Update(JPH_PhysicsSystem* system, float deltaTime, int collisionSteps, JPH_JobSystem* jobSystem)
+JPH_PhysicsUpdateError JPH_PhysicsSystem_Update(JPH_PhysicsSystem* system, float deltaTime, int collisionSteps, JPH_TempAllocator* tempAllocator, JPH_JobSystem* jobSystem)
 {
+	auto* joltTempAllocator = reinterpret_cast<TempAllocator*>(tempAllocator);
 	JPH::JobSystem* joltJobSystem = reinterpret_cast<JPH::JobSystem*>(jobSystem);
-	return static_cast<JPH_PhysicsUpdateError>(system->physicsSystem->Update(deltaTime, collisionSteps, s_TempAllocator, joltJobSystem));
+	return static_cast<JPH_PhysicsUpdateError>(system->physicsSystem->Update(deltaTime, collisionSteps, joltTempAllocator, joltJobSystem));
 }
 
 JPH_BodyInterface* JPH_PhysicsSystem_GetBodyInterface(JPH_PhysicsSystem* system)
@@ -8220,7 +8227,7 @@ void JPH_CharacterVirtual_FinishTrackingContactChanges(JPH_CharacterVirtual* cha
 
 void JPH_CharacterVirtual_Update(JPH_CharacterVirtual* character,
 	float deltaTime, JPH_ObjectLayer layer, JPH_PhysicsSystem* system,
-	const JPH_BodyFilter* bodyFilter, const JPH_ShapeFilter* shapeFilter)
+	const JPH_BodyFilter* bodyFilter, const JPH_ShapeFilter* shapeFilter, JPH_TempAllocator* tempAllocator)
 {
 	auto joltLayer = static_cast<JPH::ObjectLayer>(layer);
 
@@ -8230,13 +8237,13 @@ void JPH_CharacterVirtual_Update(JPH_CharacterVirtual* character,
 		system->physicsSystem->GetDefaultLayerFilter(joltLayer),
 		ToJolt(bodyFilter),
 		ToJolt(shapeFilter),
-		*s_TempAllocator
+		*reinterpret_cast<TempAllocator*>(tempAllocator)
 	);
 }
 
 void JPH_CharacterVirtual_ExtendedUpdate(JPH_CharacterVirtual* character, float deltaTime,
 	const JPH_ExtendedUpdateSettings* settings, JPH_ObjectLayer layer, JPH_PhysicsSystem* system,
-	const JPH_BodyFilter* bodyFilter, const JPH_ShapeFilter* shapeFilter)
+	const JPH_BodyFilter* bodyFilter, const JPH_ShapeFilter* shapeFilter, JPH_TempAllocator* tempAllocator)
 {
 	JPH_ASSERT(settings);
 
@@ -8258,14 +8265,14 @@ void JPH_CharacterVirtual_ExtendedUpdate(JPH_CharacterVirtual* character, float 
 		system->physicsSystem->GetDefaultLayerFilter(joltLayer),
 		ToJolt(bodyFilter),
 		ToJolt(shapeFilter),
-		*s_TempAllocator
+		*reinterpret_cast<TempAllocator*>(tempAllocator)
 	);
 }
 
 void JPH_CharacterVirtual_RefreshContacts(JPH_CharacterVirtual* character,
 	JPH_ObjectLayer layer,
 	JPH_PhysicsSystem* system,
-	const JPH_BodyFilter* bodyFilter, const JPH_ShapeFilter* shapeFilter)
+	const JPH_BodyFilter* bodyFilter, const JPH_ShapeFilter* shapeFilter, JPH_TempAllocator* tempAllocator)
 {
 	auto joltLayer = static_cast<JPH::ObjectLayer>(layer);
 
@@ -8274,7 +8281,7 @@ void JPH_CharacterVirtual_RefreshContacts(JPH_CharacterVirtual* character,
 		system->physicsSystem->GetDefaultLayerFilter(joltLayer),
 		ToJolt(bodyFilter),
 		ToJolt(shapeFilter),
-		*s_TempAllocator
+		*reinterpret_cast<TempAllocator*>(tempAllocator)
 	);
 }
 
@@ -8291,7 +8298,8 @@ bool JPH_CharacterVirtual_WalkStairs(JPH_CharacterVirtual* character, float delt
 	JPH_ObjectLayer layer,
 	JPH_PhysicsSystem* system,
 	const JPH_BodyFilter* bodyFilter,
-	const JPH_ShapeFilter* shapeFilter)
+	const JPH_ShapeFilter* shapeFilter,
+	JPH_TempAllocator* tempAllocator)
 {
 	auto joltLayer = static_cast<JPH::ObjectLayer>(layer);
 
@@ -8305,13 +8313,13 @@ bool JPH_CharacterVirtual_WalkStairs(JPH_CharacterVirtual* character, float delt
 		system->physicsSystem->GetDefaultLayerFilter(joltLayer),
 		ToJolt(bodyFilter),
 		ToJolt(shapeFilter),
-		*s_TempAllocator
+		*reinterpret_cast<TempAllocator*>(tempAllocator)
 	);
 }
 
 bool JPH_CharacterVirtual_StickToFloor(JPH_CharacterVirtual* character, const JPH_Vec3* stepDown,
 	JPH_ObjectLayer layer, JPH_PhysicsSystem* system,
-	const JPH_BodyFilter* bodyFilter, const JPH_ShapeFilter* shapeFilter)
+	const JPH_BodyFilter* bodyFilter, const JPH_ShapeFilter* shapeFilter, JPH_TempAllocator* tempAllocator)
 {
 	auto joltLayer = static_cast<JPH::ObjectLayer>(layer);
 
@@ -8321,7 +8329,7 @@ bool JPH_CharacterVirtual_StickToFloor(JPH_CharacterVirtual* character, const JP
 		system->physicsSystem->GetDefaultLayerFilter(joltLayer),
 		ToJolt(bodyFilter),
 		ToJolt(shapeFilter),
-		*s_TempAllocator
+		*reinterpret_cast<TempAllocator*>(tempAllocator)
 	);
 }
 
@@ -8336,7 +8344,8 @@ bool JPH_CharacterVirtual_SetShape(JPH_CharacterVirtual* character,
 	JPH_ObjectLayer layer,
 	JPH_PhysicsSystem* system,
 	const JPH_BodyFilter* bodyFilter,
-	const JPH_ShapeFilter* shapeFilter)
+	const JPH_ShapeFilter* shapeFilter,
+	JPH_TempAllocator* tempAllocator)
 {
 	auto joltLayer = static_cast<JPH::ObjectLayer>(layer);
 	return AsCharacterVirtual(character)->SetShape(
@@ -8346,7 +8355,7 @@ bool JPH_CharacterVirtual_SetShape(JPH_CharacterVirtual* character,
 		system->physicsSystem->GetDefaultLayerFilter(joltLayer),
 		ToJolt(bodyFilter),
 		ToJolt(shapeFilter),
-		*s_TempAllocator
+		*reinterpret_cast<TempAllocator*>(tempAllocator)
 	);
 }
 

@@ -37,6 +37,7 @@ int main(void)
 	//JPH_SetAssertFailureHandler(JPH_AssertFailureFunc handler);
 
 	JPH_JobSystem* jobSystem = JPH_JobSystemThreadPool_Create(nullptr);
+	JPH_TempAllocator* tempAllocator = JPH_TempAllocator_Create(8 * 1024 * 1024);
 
 	// We use only 2 layers: one for non-moving objects and one for moving objects
 	JPH_ObjectLayerPairFilter* objectLayerPairFilterTable = JPH_ObjectLayerPairFilterTable_Create(2);
@@ -153,7 +154,7 @@ int main(void)
 		const int cCollisionSteps = 1;
 
 		// Step the world
-		JPH_PhysicsSystem_Update(system, cDeltaTime, cCollisionSteps, jobSystem);
+		JPH_PhysicsSystem_Update(system, cDeltaTime, cCollisionSteps, tempAllocator, jobSystem);
 	}
 
 	// Remove the destroy sphere from the physics system. Note that the sphere itself keeps all of its state and can be re-added at any time.
@@ -162,6 +163,7 @@ int main(void)
 	// Remove and destroy the floor
 	JPH_BodyInterface_RemoveAndDestroyBody(bodyInterface, floorId);
 
+	JPH_TempAllocator_Destroy(tempAllocator);
 	JPH_JobSystem_Destroy(jobSystem);
 
 	JPH_PhysicsSystem_Destroy(system);
