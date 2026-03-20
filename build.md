@@ -166,7 +166,7 @@ cmake -S . -B build_win_x64 -G Ninja \
   -DCMAKE_CXX_COMPILER=x86_64-w64-mingw32-g++ \
   -DCMAKE_RC_COMPILER=x86_64-w64-mingw32-windres \
   -DCMAKE_BUILD_TYPE=Distribution \
-  -DCMAKE_SHARED_LINKER_FLAGS="-static-libgcc -static-libstdc++" \
+  -DCMAKE_SHARED_LINKER_FLAGS="-static-libgcc -static-libstdc++ -static -lpthread" \
   -DJPH_SAMPLES=OFF -DJPH_TESTS=OFF \
   -DJPH_USE_DX12=OFF -DJPH_USE_DXC=OFF
 cmake --build build_win_x64 --config Distribution --parallel
@@ -183,7 +183,7 @@ cmake -S . -B build_win_x86 -G Ninja \
   -DCMAKE_RC_COMPILER=i686-w64-mingw32-windres \
   -DCMAKE_BUILD_TYPE=Distribution \
   -DCMAKE_CXX_FLAGS="-msse2" \
-  -DCMAKE_SHARED_LINKER_FLAGS="-static-libgcc -static-libstdc++" \
+  -DCMAKE_SHARED_LINKER_FLAGS="-static-libgcc -static-libstdc++ -static -lpthread" \
   -DUSE_SSE4_1=OFF -DUSE_SSE4_2=OFF -DUSE_AVX=OFF -DUSE_AVX2=OFF \
   -DUSE_LZCNT=OFF -DUSE_TZCNT=OFF -DUSE_F16C=OFF -DUSE_FMADD=OFF \
   -DJPH_SAMPLES=OFF -DJPH_TESTS=OFF \
@@ -321,7 +321,7 @@ cmake -S . -B build_win_x64 -G Ninja \
   -DCMAKE_CXX_COMPILER=x86_64-w64-mingw32-g++ \
   -DCMAKE_RC_COMPILER=x86_64-w64-mingw32-windres \
   -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
-  -DCMAKE_SHARED_LINKER_FLAGS="-static-libgcc -static-libstdc++" \
+  -DCMAKE_SHARED_LINKER_FLAGS="-static-libgcc -static-libstdc++ -static -lpthread" \
   -DJPH_SAMPLES=OFF -DJPH_TESTS=OFF \
   -DJPH_USE_DX12=OFF -DJPH_USE_DXC=OFF
 cmake --build build_win_x64 --parallel
@@ -334,7 +334,7 @@ cmake -S . -B build_win_x86 -G Ninja \
   -DCMAKE_RC_COMPILER=i686-w64-mingw32-windres \
   -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
   -DCMAKE_CXX_FLAGS="-msse2" \
-  -DCMAKE_SHARED_LINKER_FLAGS="-static-libgcc -static-libstdc++" \
+  -DCMAKE_SHARED_LINKER_FLAGS="-static-libgcc -static-libstdc++ -static -lpthread" \
   -DUSE_SSE4_1=OFF -DUSE_SSE4_2=OFF -DUSE_AVX=OFF -DUSE_AVX2=OFF \
   -DUSE_LZCNT=OFF -DUSE_TZCNT=OFF -DUSE_F16C=OFF -DUSE_FMADD=OFF \
   -DJPH_SAMPLES=OFF -DJPH_TESTS=OFF \

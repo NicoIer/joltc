@@ -338,6 +338,8 @@ if(JPH_BUILD_SHARED)
 		# Zig (Clang): relies on -fvisibility=hidden which is already set globally
 		if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
 			target_link_options(${TARGET_NAME} PRIVATE -Wl,--exclude-all-symbols)
+			# Statically link pthread to avoid runtime dependency on libwinpthread-1.dll
+			target_link_options(${TARGET_NAME} PRIVATE -static -lpthread)
 		endif()
 	endif()
 endif ()
