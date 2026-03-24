@@ -370,6 +370,50 @@ echo "=== Done ==="
 
 ---
 
+## Strip（移除调试符号，减小体积）
+
+编译产物默认包含符号表和调试信息，strip 后体积可减少 70%~92%。strip 不影响功能和性能，仅移除调试用的元数据。
+
+> macOS (AppleClang) 和 win-arm64 (zig) 的 Distribution 构建默认已 strip，无需额外处理。
+
+### Linux
+
+```shell
+llvm-strip --strip-unneeded build_linux_x86_64/lib/libjoltc.so
+llvm-strip --strip-unneeded build_linux_arm64/lib/libjoltc.so
+```
+
+### Windows (mingw-w64)
+
+```shell
+x86_64-w64-mingw32-strip --strip-unneeded build_win_x64/lib/libjoltc.dll
+i686-w64-mingw32-strip --strip-unneeded build_win_x86/lib/libjoltc.dll
+```
+
+### Android
+
+```shell
+llvm-strip --strip-unneeded build_android_arm64-v8a/lib/libjoltc.so
+llvm-strip --strip-unneeded build_android_armeabi-v7a/lib/libjoltc.so
+llvm-strip --strip-unneeded build_android_x86_64/lib/libjoltc.so
+llvm-strip --strip-unneeded build_android_x86/lib/libjoltc.so
+```
+
+### Strip 前后体积参考
+
+| 平台 | Strip 前 | Strip 后 |
+|------|---------|---------|
+| Linux x86_64 | 29 MB | 2.7 MB |
+| Linux arm64 | 31 MB | 2.4 MB |
+| Android arm64-v8a | 25 MB | 2.5 MB |
+| Android armeabi-v7a | 22 MB | 2.0 MB |
+| Android x86_64 | 22 MB | 2.6 MB |
+| Android x86 | 21 MB | 2.8 MB |
+| Windows x64 | 15 MB | 4.1 MB |
+| Windows x86 | 14 MB | 2.9 MB |
+
+---
+
 ## 产物汇总
 
 | 平台 | 架构 | 工具链 | 产物 |
