@@ -33,3 +33,4 @@ endfunction()
 
 # Add samples
 add_sample(01_HelloWorld)
+add_sample(02_RemoveBodyOnContact)
