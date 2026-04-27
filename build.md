@@ -262,7 +262,19 @@ cmake -S . -B build_linux_arm64_debug -G Ninja \
 cmake --build build_linux_arm64_debug --config Debug --parallel
 ```
 
-产物: `build_linux_arm64_debug/lib/libjoltc.so`（含完整调试符号，不要 strip）
+产物: `build_linux_arm64_debug/lib/libjoltcd.so`（含完整调试符号，不要 strip）
+
+### linux-x86_64 Debug（保留调试信息，用于内存泄漏排查）
+
+```shell
+cmake -S . -B build_linux_x86_64_debug -G Ninja \
+  -DCMAKE_TOOLCHAIN_FILE=cmake/zig-linux-x86_64.toolchain.cmake \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DJPH_SAMPLES=OFF -DJPH_TESTS=OFF
+cmake --build build_linux_x86_64_debug --config Debug --parallel
+```
+
+产物: `build_linux_x86_64_debug/lib/libjoltcd.so`（含完整调试符号，不要 strip）
 
 产物: `build_linux_<arch>/lib/libjoltc.so`
 

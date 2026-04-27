@@ -290,3 +290,4 @@ build_linux_arm64/
 cmake/_zig_target.txt
 /swig/build/
 /build_linux_arm64_debug/
+/build_linux_x86_64_debug/
