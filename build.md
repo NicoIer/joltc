@@ -250,6 +250,20 @@ cmake -S . -B build_linux_arm64 -G Ninja \
 cmake --build build_linux_arm64 --config Distribution --parallel
 ```
 
+### linux-arm64 Debug（保留调试信息，用于内存泄漏排查）
+
+使用 `Debug` 构建类型，保留完整调试符号，**不进行 strip**。适用于 AddressSanitizer / Valgrind 等工具定位内存问题。
+
+```shell
+cmake -S . -B build_linux_arm64_debug -G Ninja \
+  -DCMAKE_TOOLCHAIN_FILE=cmake/zig-linux-aarch64.toolchain.cmake \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DJPH_SAMPLES=OFF -DJPH_TESTS=OFF
+cmake --build build_linux_arm64_debug --config Debug --parallel
+```
+
+产物: `build_linux_arm64_debug/lib/libjoltc.so`（含完整调试符号，不要 strip）
+
 产物: `build_linux_<arch>/lib/libjoltc.so`
 
 ---

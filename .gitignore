@@ -289,3 +289,4 @@ build_linux_arm64/
 # Zig toolchain temp file
 cmake/_zig_target.txt
 /swig/build/
+/build_linux_arm64_debug/
