@@ -6861,6 +6861,7 @@ public:
 		JPH_CollideShapeResult hit = FromJolt(result);
 
 		float fraction = proc(userData, &hit);
+		JPH_CollideShapeResult_FreeMembers(&hit);
 		UpdateEarlyOutFraction(fraction);
 		hadHit = true;
 	}
@@ -7285,6 +7286,7 @@ bool JPH_NarrowPhaseQuery_CollideShape2(const JPH_NarrowPhaseQuery* query,
 			{
 				result = FromJolt(collector.mHit);
 				callback(userData, &result);
+				JPH_CollideShapeResult_FreeMembers(&result);
 			}
 
 			return collector.HadHit();
@@ -7310,6 +7312,7 @@ bool JPH_NarrowPhaseQuery_CollideShape2(const JPH_NarrowPhaseQuery* query,
 			{
 				result = FromJolt(collector.mHit);
 				callback(userData, &result);
+				JPH_CollideShapeResult_FreeMembers(&result);
 			}
 
 			return collector.HadHit();
@@ -7943,6 +7946,8 @@ public:
 				&baseOffset,
 				&collideShapeResult
 			);
+			
+			JPH_CollideShapeResult_FreeMembers(&collideShapeResult);
 
 			return (JPH::ValidateResult)result;
 		}
