@@ -2,6 +2,7 @@
 // Licensed under the MIT License (MIT). See LICENSE in the repository root for more information.
 
 #include "joltc.h"
+#include "joltc_conversions.h"
 
 #include <Jolt/Core/Core.h>
 
@@ -271,49 +272,10 @@ static bool AssertFailedImpl(const char* inExpression, const char* inMessage, co
 
 #endif // JPH_ENABLE_ASSERTS
 
-// From Jolt conversion methods
-static inline JPH_Vec3 FromJolt(const Vec3& vec)
-{
-	return { vec.GetX(), vec.GetY(), vec.GetZ() };
-}
-
-static inline JPH_Vec4 FromJolt(const Vec4& vec)
-{
-	return { vec.GetX(), vec.GetY(), vec.GetZ(), vec.GetW() };
-}
-
-static inline void FromJolt(const Vec3& vec, JPH_Vec3* result)
-{
-	result->x = vec.GetX();
-	result->y = vec.GetY();
-	result->z = vec.GetZ();
-}
-
-static inline void FromJolt(const Float3& vec, JPH_Vec3* result)
-{
-	result->x = vec.x;
-	result->y = vec.y;
-	result->z = vec.z;
-}
-
-static inline void FromJolt(const Quat& quat, JPH_Quat* result)
-{
-	result->x = quat.GetX();
-	result->y = quat.GetY();
-	result->z = quat.GetZ();
-	result->w = quat.GetW();
-}
-
 static inline void FromJolt(const Plane& value, JPH_Plane* result)
 {
 	FromJolt(value.GetNormal(), &result->normal);
 	result->distance = value.GetConstant();
-}
-
-static inline void FromJolt(const AABox& value, JPH_AABox* result)
-{
-	FromJolt(value.mMin, &result->min);
-	FromJolt(value.mMax, &result->max);
 }
 
 static inline void FromJolt(const Mat44& matrix, JPH_Mat4* result)
@@ -322,18 +284,6 @@ static inline void FromJolt(const Mat44& matrix, JPH_Mat4* result)
 }
 
 #if defined(JPH_DOUBLE_PRECISION)
-static inline void FromJolt(const RVec3& vec, JPH_RVec3* result)
-{
-	result->x = vec.GetX();
-	result->y = vec.GetY();
-	result->z = vec.GetZ();
-}
-
-static inline JPH_RVec3 FromJolt(const RVec3& vec)
-{
-	return { vec.GetX(), vec.GetY(), vec.GetZ() };
-}
-
 static inline void FromJolt(const DMat44& matrix, JPH_RMat4* result)
 {
 	Vec4 column0 = matrix.GetColumn4(0);
@@ -467,27 +417,6 @@ static inline void FromJolt(const CollisionGroup& jolt, JPH_CollisionGroup* resu
 	result->subGroupID = jolt.GetSubGroupID();
 }
 
-// To Jolt conversion methods
-static inline JPH::Vec3 ToJolt(const JPH_Vec3& vec)
-{
-	return JPH::Vec3(vec.x, vec.y, vec.z);
-}
-
-static inline JPH::Vec3 ToJolt(const JPH_Vec3* vec)
-{
-	return JPH::Vec3(vec->x, vec->y, vec->z);
-}
-
-static inline JPH::Vec4 ToJolt(const JPH_Vec4& vec)
-{
-	return JPH::Vec4(vec.x, vec.y, vec.z, vec.w);
-}
-
-static inline JPH::Quat ToJolt(const JPH_Quat* quat)
-{
-	return JPH::Quat(quat->x, quat->y, quat->z, quat->w);
-}
-
 static inline JPH::Plane ToJolt(const JPH_Plane* value)
 {
 	return JPH::Plane(ToJolt(value->normal), value->distance);
@@ -500,27 +429,7 @@ static inline JPH::Mat44 ToJolt(const JPH_Mat4* matrix)
 	return result;
 }
 
-static inline JPH::Float3 ToJoltFloat3(const JPH_Vec3& vec)
-{
-	return JPH::Float3(vec.x, vec.y, vec.z);
-}
-
-static inline JPH::AABox ToJolt(const JPH_AABox* value)
-{
-	return JPH::AABox(ToJolt(value->min), ToJolt(value->max));
-}
-
 #if defined(JPH_DOUBLE_PRECISION)
-static inline JPH::RVec3 ToJolt(const JPH_RVec3& vec)
-{
-	return JPH::RVec3(vec.x, vec.y, vec.z);
-}
-
-static inline JPH::RVec3 ToJolt(const JPH_RVec3* vec)
-{
-	return JPH::RVec3(vec->x, vec->y, vec->z);
-}
-
 static inline JPH::RMat44 ToJolt(const JPH_RMat4* matrix)
 {
 	JPH::RMat44 result{};

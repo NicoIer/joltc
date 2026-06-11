@@ -101,6 +101,27 @@ typedef struct viewer_sample_state {
 	JPH_DrawSettings draw_settings;
 } viewer_sample_state;
 
+static void draw_immediate_debug(JPH_Viewer* viewer)
+{
+	JPH_RVec3 line_from = { -2.0f, 0.05f, 0.0f };
+	JPH_RVec3 line_to = { 2.0f, 0.05f, 0.0f };
+	JPH_Viewer_DrawLine(viewer, &line_from, &line_to, 0xff0000ff);
+
+	JPH_AABox box = { { -1.0f, 0.0f, -1.0f }, { 1.0f, 1.0f, 1.0f } };
+	JPH_Viewer_DrawBox(viewer, &box, 0xff00ffff, JPH_DebugRenderer_CastShadow_Off, JPH_DebugRenderer_DrawMode_Wireframe);
+
+	JPH_RVec3 sphere_center = { 0.0f, 1.5f, 2.0f };
+	JPH_Viewer_DrawSphere(viewer, &sphere_center, 0.5f, 0xff00ff00, JPH_DebugRenderer_CastShadow_Off, JPH_DebugRenderer_DrawMode_Wireframe);
+
+	JPH_Vec3 half_extents = { 0.35f, 0.35f, 0.35f };
+	JPH_BoxShape* shape = JPH_BoxShape_Create(&half_extents, JPH_DEFAULT_CONVEX_RADIUS);
+	JPH_RVec3 shape_position = { 2.0f, 1.0f, 0.0f };
+	JPH_Quat shape_rotation = { 0.0f, 0.0f, 0.0f, 1.0f };
+	JPH_Vec3 shape_scale = { 1.0f, 1.0f, 1.0f };
+	JPH_Viewer_DrawShape(viewer, (const JPH_Shape*)shape, &shape_position, &shape_rotation, &shape_scale, 0xffffff00, false, true);
+	JPH_Shape_Destroy((JPH_Shape*)shape);
+}
+
 static bool draw_viewer_frame(JPH_Viewer* viewer, float delta_time, void* user_data)
 {
 	viewer_sample_state* state = (viewer_sample_state*)user_data;
@@ -109,6 +130,7 @@ static bool draw_viewer_frame(JPH_Viewer* viewer, float delta_time, void* user_d
 
 	JPH_PhysicsSystem_Update(state->system, delta_time, 1, state->temp_allocator, state->job_system);
 	JPH_Viewer_DrawBodies(viewer, state->system, &state->draw_settings, NULL);
+	draw_immediate_debug(viewer);
 	return true;
 }
 
@@ -158,18 +180,20 @@ int main(int argc, char** argv)
 
 	bool use_metal = argc > 1 && strcmp(argv[1], "--metal") == 0;
 	bool use_vulkan = argc > 1 && strcmp(argv[1], "--vulkan") == 0;
+	bool use_dx12 = argc > 1 && strcmp(argv[1], "--dx12") == 0;
 
-	if (use_metal || use_vulkan)
+	if (use_metal || use_vulkan || use_dx12)
 	{
 		JPH_ViewerSettings viewer_settings;
 		JPH_ViewerSettings_InitDefault(&viewer_settings);
-		viewer_settings.title = use_metal ? "Jolt Viewer C - Metal" : "Jolt Viewer C - Vulkan";
-		viewer_settings.backend = use_metal ? JPH_ViewerBackend_Metal : JPH_ViewerBackend_Vulkan;
+		const char* backend_name = use_metal ? "Metal" : (use_vulkan ? "Vulkan" : "DX12");
+		viewer_settings.title = use_metal ? "Jolt Viewer C - Metal" : (use_vulkan ? "Jolt Viewer C - Vulkan" : "Jolt Viewer C - DX12");
+		viewer_settings.backend = use_metal ? JPH_ViewerBackend_Metal : (use_vulkan ? JPH_ViewerBackend_Vulkan : JPH_ViewerBackend_DX12);
 
-		JPH_Viewer* viewer = use_metal ? JPH_Viewer_CreateMetal(&viewer_settings) : JPH_Viewer_CreateVulkan(&viewer_settings);
+		JPH_Viewer* viewer = use_metal ? JPH_Viewer_CreateMetal(&viewer_settings) : (use_vulkan ? JPH_Viewer_CreateVulkan(&viewer_settings) : JPH_Viewer_CreateDX12(&viewer_settings));
 		if (viewer == NULL)
 		{
-			fprintf(stderr, "Failed to create %s viewer\n", use_metal ? "Metal" : "Vulkan");
+			fprintf(stderr, "Failed to create %s viewer\n", backend_name);
 			JPH_BodyInterface_RemoveAndDestroyBody(body_interface, sphere_id);
 			JPH_BodyInterface_RemoveAndDestroyBody(body_interface, floor_id);
 			JPH_TempAllocator_Destroy(temp_allocator);
@@ -209,6 +233,7 @@ int main(int argc, char** argv)
 		JPH_Viewer_SetCameraPosition(viewer, &camera_position);
 
 		JPH_Viewer_DrawBodies(viewer, system, &draw_settings, NULL);
+		draw_immediate_debug(viewer);
 		JPH_Viewer_NextFrame(viewer);
 		JPH_Viewer_Flush(viewer);
 

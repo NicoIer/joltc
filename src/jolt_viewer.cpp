@@ -2,8 +2,10 @@
 // Licensed under the MIT License (MIT). See LICENSE in the repository root for more information.
 
 #include "jolt_viewer.h"
+#include "joltc_conversions.h"
 
 #include <Jolt/Jolt.h>
+#include <Jolt/Physics/Collision/Shape/Shape.h>
 
 #ifdef JPH_DEBUG_RENDERER
 #include <Jolt/Renderer/DebugRendererSimple.h>
@@ -32,13 +34,6 @@
 #ifdef JPH_DEBUG_RENDERER
 
 using namespace JPH;
-
-static inline void FromJolt(RVec3Arg vec, JPH_RVec3* result)
-{
-	result->x = (float)vec.GetX();
-	result->y = (float)vec.GetY();
-	result->z = (float)vec.GetZ();
-}
 
 class ObjDebugRenderer final : public DebugRendererSimple
 {
@@ -193,9 +188,20 @@ void JPH_ViewerSettings_InitDefault(JPH_ViewerSettings* settings)
 
 #ifdef JPH_DEBUG_RENDERER
 
-static inline RVec3 ToJolt(const JPH_RVec3& vec)
+static DebugRenderer* GetDebugRenderer(JPH_Viewer* viewer)
 {
-	return RVec3(vec.x, vec.y, vec.z);
+	if (viewer == nullptr)
+		return nullptr;
+
+	if (viewer->kind == ViewerKind::Obj)
+		return viewer->objRenderer;
+
+#ifdef JPH_VIEWER_WITH_TEST_FRAMEWORK
+	if (viewer->kind == ViewerKind::Windowed)
+		return viewer->debugRenderer;
+#endif
+
+	return nullptr;
 }
 
 #ifdef JPH_VIEWER_WITH_TEST_FRAMEWORK
@@ -226,6 +232,13 @@ static Renderer* CreateGpuRenderer(JPH_ViewerBackend backend)
 
 	case JPH_ViewerBackend_Metal:
 #if defined(JPH_USE_MTL) && defined(JPH_PLATFORM_MACOS)
+		return Renderer::sCreate();
+#else
+		return nullptr;
+#endif
+
+	case JPH_ViewerBackend_DX12:
+#if defined(JPH_USE_DX12) && defined(JPH_PLATFORM_WINDOWS)
 		return Renderer::sCreate();
 #else
 		return nullptr;
@@ -336,6 +349,16 @@ JPH_Viewer* JPH_Viewer_CreateVulkan(const JPH_ViewerSettings* settings)
 #endif
 }
 
+JPH_Viewer* JPH_Viewer_CreateDX12(const JPH_ViewerSettings* settings)
+{
+#if defined(JPH_DEBUG_RENDERER) && defined(JPH_VIEWER_WITH_TEST_FRAMEWORK)
+	return CreateWindowedViewer(settings, JPH_ViewerBackend_DX12);
+#else
+	JPH_UNUSED(settings);
+	return nullptr;
+#endif
+}
+
 void JPH_Viewer_Destroy(JPH_Viewer* viewer)
 {
 #ifdef JPH_DEBUG_RENDERER
@@ -358,17 +381,7 @@ void JPH_Viewer_Destroy(JPH_Viewer* viewer)
 JPH_DebugRenderer* JPH_Viewer_GetDebugRenderer(JPH_Viewer* viewer)
 {
 #ifdef JPH_DEBUG_RENDERER
-	if (viewer == nullptr)
-		return nullptr;
-
-	if (viewer->kind == ViewerKind::Obj)
-		return reinterpret_cast<JPH_DebugRenderer*>(viewer->objRenderer);
-
-#ifdef JPH_VIEWER_WITH_TEST_FRAMEWORK
-	return reinterpret_cast<JPH_DebugRenderer*>(viewer->debugRenderer);
-#else
-	return nullptr;
-#endif
+	return reinterpret_cast<JPH_DebugRenderer*>(GetDebugRenderer(viewer));
 #else
 	JPH_UNUSED(viewer);
 	return nullptr;
@@ -382,11 +395,11 @@ void JPH_Viewer_SetCameraPosition(JPH_Viewer* viewer, const JPH_RVec3* position)
 		return;
 
 	if (viewer->kind == ViewerKind::Obj && viewer->objRenderer != nullptr)
-		viewer->objRenderer->SetCameraPos(ToJolt(*position));
+		viewer->objRenderer->SetCameraPos(ToJolt(position));
 
 #ifdef JPH_VIEWER_WITH_TEST_FRAMEWORK
 	if (viewer->kind == ViewerKind::Windowed)
-		viewer->camera.mPos = ToJolt(*position);
+		viewer->camera.mPos = ToJolt(position);
 #endif
 #else
 	JPH_UNUSED(viewer);
@@ -509,6 +522,110 @@ void JPH_Viewer_GetStats(const JPH_Viewer* viewer, JPH_ViewerStats* stats)
 #else
 	JPH_UNUSED(viewer);
 	*stats = {};
+#endif
+}
+
+void JPH_Viewer_DrawLine(JPH_Viewer* viewer, const JPH_RVec3* from, const JPH_RVec3* to, JPH_Color color)
+{
+#ifdef JPH_DEBUG_RENDERER
+	DebugRenderer* renderer = GetDebugRenderer(viewer);
+	if (renderer != nullptr && from != nullptr && to != nullptr)
+		renderer->DrawLine(ToJolt(from), ToJolt(to), Color(color));
+#else
+	JPH_UNUSED(viewer);
+	JPH_UNUSED(from);
+	JPH_UNUSED(to);
+	JPH_UNUSED(color);
+#endif
+}
+
+void JPH_Viewer_DrawTriangle(JPH_Viewer* viewer, const JPH_RVec3* v1, const JPH_RVec3* v2, const JPH_RVec3* v3, JPH_Color color, JPH_DebugRenderer_CastShadow castShadow)
+{
+#ifdef JPH_DEBUG_RENDERER
+	DebugRenderer* renderer = GetDebugRenderer(viewer);
+	if (renderer != nullptr && v1 != nullptr && v2 != nullptr && v3 != nullptr)
+		renderer->DrawTriangle(
+			ToJolt(v1),
+			ToJolt(v2),
+			ToJolt(v3),
+			Color(color),
+			static_cast<DebugRenderer::ECastShadow>(castShadow));
+#else
+	JPH_UNUSED(viewer);
+	JPH_UNUSED(v1);
+	JPH_UNUSED(v2);
+	JPH_UNUSED(v3);
+	JPH_UNUSED(color);
+	JPH_UNUSED(castShadow);
+#endif
+}
+
+void JPH_Viewer_DrawBox(JPH_Viewer* viewer, const JPH_AABox* box, JPH_Color color, JPH_DebugRenderer_CastShadow castShadow, JPH_DebugRenderer_DrawMode drawMode)
+{
+#ifdef JPH_DEBUG_RENDERER
+	DebugRenderer* renderer = GetDebugRenderer(viewer);
+	if (renderer != nullptr && box != nullptr)
+		renderer->DrawBox(
+			ToJolt(*box),
+			Color(color),
+			static_cast<DebugRenderer::ECastShadow>(castShadow),
+			static_cast<DebugRenderer::EDrawMode>(drawMode));
+#else
+	JPH_UNUSED(viewer);
+	JPH_UNUSED(box);
+	JPH_UNUSED(color);
+	JPH_UNUSED(castShadow);
+	JPH_UNUSED(drawMode);
+#endif
+}
+
+void JPH_Viewer_DrawSphere(JPH_Viewer* viewer, const JPH_RVec3* center, float radius, JPH_Color color, JPH_DebugRenderer_CastShadow castShadow, JPH_DebugRenderer_DrawMode drawMode)
+{
+#ifdef JPH_DEBUG_RENDERER
+	DebugRenderer* renderer = GetDebugRenderer(viewer);
+	if (renderer != nullptr && center != nullptr)
+		renderer->DrawSphere(
+			ToJolt(center),
+			radius,
+			Color(color),
+			static_cast<DebugRenderer::ECastShadow>(castShadow),
+			static_cast<DebugRenderer::EDrawMode>(drawMode));
+#else
+	JPH_UNUSED(viewer);
+	JPH_UNUSED(center);
+	JPH_UNUSED(radius);
+	JPH_UNUSED(color);
+	JPH_UNUSED(castShadow);
+	JPH_UNUSED(drawMode);
+#endif
+}
+
+void JPH_Viewer_DrawShape(JPH_Viewer* viewer, const JPH_Shape* shape, const JPH_RVec3* position, const JPH_Quat* rotation, const JPH_Vec3* scale, JPH_Color color, bool useMaterialColors, bool drawWireframe)
+{
+#ifdef JPH_DEBUG_RENDERER
+	DebugRenderer* renderer = GetDebugRenderer(viewer);
+	if (renderer == nullptr || shape == nullptr || position == nullptr)
+		return;
+
+	Quat jolt_rotation = rotation != nullptr ? ToJolt(rotation) : Quat::sIdentity();
+	Vec3 jolt_scale = scale != nullptr ? ToJolt(scale) : Vec3::sOne();
+	RMat44 transform = RMat44::sRotationTranslation(jolt_rotation, ToJolt(position));
+	reinterpret_cast<const Shape*>(shape)->Draw(
+		renderer,
+		transform,
+		jolt_scale,
+		Color(color),
+		useMaterialColors,
+		drawWireframe);
+#else
+	JPH_UNUSED(viewer);
+	JPH_UNUSED(shape);
+	JPH_UNUSED(position);
+	JPH_UNUSED(rotation);
+	JPH_UNUSED(scale);
+	JPH_UNUSED(color);
+	JPH_UNUSED(useMaterialColors);
+	JPH_UNUSED(drawWireframe);
 #endif
 }
 
