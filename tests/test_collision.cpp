@@ -140,6 +140,116 @@ TEST_F(CollisionTest, RayCast_ClosestHit) {
     RemoveAndDestroyBody(sphere2Id);
 }
 
+TEST_F(CollisionTest, CastShape_DetectsHit) {
+    JPH_BodyID sphereId = CreateSphereBody(0.0f, 0.0f, 0.0f, 1.0f, JPH_MotionType_Static, ObjectLayers::NON_MOVING);
+    JPH_PhysicsSystem_OptimizeBroadPhase(physicsSystem);
+
+    const JPH_NarrowPhaseQuery* query = JPH_PhysicsSystem_GetNarrowPhaseQuery(physicsSystem);
+
+    JPH_SphereShape* castShape = JPH_SphereShape_Create(0.5f);
+    JPH_RVec3 start = {-5.0f, 0.0f, 0.0f};
+    JPH_RMat4 worldTransform;
+#if defined(JPH_DOUBLE_PRECISION)
+    JPH_RMat4_Translation(&worldTransform, &start);
+#else
+    JPH_Mat4_Translation(&worldTransform, &start);
+#endif
+
+    JPH_Vec3 direction = {10.0f, 0.0f, 0.0f};
+    JPH_ShapeCastSettings settings;
+    JPH_ShapeCastSettings_Init(&settings);
+    JPH_RVec3 baseOffset = {0.0f, 0.0f, 0.0f};
+
+    struct CastShapeHitContext {
+        int hitCount = 0;
+        JPH_ShapeCastResult firstHit = {};
+    } context;
+
+    auto callback = [](void* userData, const JPH_ShapeCastResult* result) -> float {
+        auto* hitContext = static_cast<CastShapeHitContext*>(userData);
+        if (hitContext->hitCount == 0)
+            hitContext->firstHit = *result;
+        ++hitContext->hitCount;
+        return result->fraction;
+    };
+
+    bool hasHit = JPH_NarrowPhaseQuery_CastShape(query,
+        (const JPH_Shape*)castShape,
+        &worldTransform,
+        &direction,
+        &settings,
+        &baseOffset,
+        callback,
+        &context,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr);
+
+    EXPECT_TRUE(hasHit);
+    ASSERT_GE(context.hitCount, 1);
+    EXPECT_EQ(context.firstHit.bodyID2, sphereId);
+    EXPECT_NEAR(context.firstHit.fraction, 0.35f, 0.01f);
+
+    JPH_Shape_Destroy((JPH_Shape*)castShape);
+    RemoveAndDestroyBody(sphereId);
+}
+
+TEST_F(CollisionTest, CastShape2_DetectsHit) {
+    JPH_BodyID sphereId = CreateSphereBody(0.0f, 0.0f, 0.0f, 1.0f, JPH_MotionType_Static, ObjectLayers::NON_MOVING);
+    JPH_PhysicsSystem_OptimizeBroadPhase(physicsSystem);
+
+    const JPH_NarrowPhaseQuery* query = JPH_PhysicsSystem_GetNarrowPhaseQuery(physicsSystem);
+
+    JPH_SphereShape* castShape = JPH_SphereShape_Create(0.5f);
+    JPH_RVec3 start = {-5.0f, 0.0f, 0.0f};
+    JPH_RMat4 worldTransform;
+#if defined(JPH_DOUBLE_PRECISION)
+    JPH_RMat4_Translation(&worldTransform, &start);
+#else
+    JPH_Mat4_Translation(&worldTransform, &start);
+#endif
+
+    JPH_Vec3 direction = {10.0f, 0.0f, 0.0f};
+    JPH_ShapeCastSettings settings;
+    JPH_ShapeCastSettings_Init(&settings);
+    JPH_RVec3 baseOffset = {0.0f, 0.0f, 0.0f};
+
+    struct CastShapeHitContext {
+        int hitCount = 0;
+        JPH_ShapeCastResult firstHit = {};
+    } context;
+
+    auto callback = [](void* userData, const JPH_ShapeCastResult* result) {
+        auto* hitContext = static_cast<CastShapeHitContext*>(userData);
+        if (hitContext->hitCount == 0)
+            hitContext->firstHit = *result;
+        ++hitContext->hitCount;
+    };
+
+    bool hasHit = JPH_NarrowPhaseQuery_CastShape2(query,
+        (const JPH_Shape*)castShape,
+        &worldTransform,
+        &direction,
+        &settings,
+        &baseOffset,
+        JPH_CollisionCollectorType_AllHit,
+        callback,
+        &context,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr);
+
+    EXPECT_TRUE(hasHit);
+    ASSERT_GE(context.hitCount, 1);
+    EXPECT_EQ(context.firstHit.bodyID2, sphereId);
+    EXPECT_NEAR(context.firstHit.fraction, 0.35f, 0.01f);
+
+    JPH_Shape_Destroy((JPH_Shape*)castShape);
+    RemoveAndDestroyBody(sphereId);
+}
+
 TEST_F(CollisionTest, GetBroadPhaseQuery) {
     const JPH_BroadPhaseQuery* query = JPH_PhysicsSystem_GetBroadPhaseQuery(physicsSystem);
     EXPECT_NE(query, nullptr);

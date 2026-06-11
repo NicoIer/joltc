@@ -291,3 +291,8 @@ cmake/_zig_target.txt
 /swig/build/
 /build_linux_arm64_debug/
 /build_linux_x86_64_debug/
+/build_win_x64_tests2/
+/build_win_x64_tests/
+/build_win_x64_vk_nolto/
+/build_win_x64_vk_test/
+/third_party/

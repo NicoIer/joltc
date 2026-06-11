@@ -10,6 +10,16 @@ brew install mingw-w64   # Windows x64/x86 交叉编译
 brew install zig          # Linux 交叉编译 & Windows ARM64
 ```
 
+如果需要在 macOS 上交叉编译带 Vulkan Viewer 的 Windows x64 版本，需要额外准备两套 Vulkan SDK 路径:
+
+```shell
+# macOS Vulkan SDK：用于提供构建期 shader 编译工具 glslc / glslangValidator
+export MAC_VULKAN_SDK=$HOME/VulkanSDK/1.4.350.0/macOS
+
+# Windows Vulkan SDK：用于提供 Windows 目标平台的 vulkan.h 和 vulkan-1.lib
+export WIN_VULKAN_SDK=/Users/chenjun/Desktop/Project/ThirdParty/VulkanSDK-Windows/1.4.350.0
+```
+
 ## 预下载 JoltPhysics（推荐）
 
 在项目根目录 clone 一份 JoltPhysics，所有平台构建共享同一份源码，避免每个 build 目录重复下载:
@@ -167,10 +177,18 @@ cmake -S . -B build_win_x64 -G Ninja \
   -DCMAKE_RC_COMPILER=x86_64-w64-mingw32-windres \
   -DCMAKE_BUILD_TYPE=Distribution \
   -DCMAKE_SHARED_LINKER_FLAGS="-static-libgcc -static-libstdc++ -static -lpthread" \
+  -DINTERPROCEDURAL_OPTIMIZATION=OFF \
   -DJPH_SAMPLES=OFF -DJPH_TESTS=OFF \
-  -DJPH_USE_DX12=OFF -DJPH_USE_DXC=OFF
+  -DJPH_USE_DX12=OFF -DJPH_USE_DXC=OFF \
+  -DJPH_USE_VK=ON \
+  -DVulkan_INCLUDE_DIR="$WIN_VULKAN_SDK/Include" \
+  -DVulkan_LIBRARY="$WIN_VULKAN_SDK/Lib/vulkan-1.lib" \
+  -DVulkan_GLSLC_EXECUTABLE="$MAC_VULKAN_SDK/bin/glslc" \
+  -DVulkan_GLSLANG_VALIDATOR_EXECUTABLE="$MAC_VULKAN_SDK/bin/glslangValidator"
 cmake --build build_win_x64 --config Distribution --parallel
 ```
+
+> Windows x64 Viewer 当前使用 Vulkan 后端。MinGW + Vulkan + Jolt TestFramework 在开启 LTO 时可能出现重复符号链接错误，因此这里显式关闭 `INTERPROCEDURAL_OPTIMIZATION`。
 
 ### win-x86 (mingw-w64)
 
@@ -258,6 +276,8 @@ set -e
 
 BUILD_TYPE=${1:-Distribution}
 NDK_PATH=${NDK_PATH:-/Applications/Unity/Hub/Editor/6000.3.9f1/PlaybackEngines/AndroidPlayer/NDK}
+MAC_VULKAN_SDK=${MAC_VULKAN_SDK:-$HOME/VulkanSDK/1.4.350.0/macOS}
+WIN_VULKAN_SDK=${WIN_VULKAN_SDK:-/Users/chenjun/Desktop/Project/ThirdParty/VulkanSDK-Windows/1.4.350.0}
 
 echo "=== joltc cross-platform build (${BUILD_TYPE}) ==="
 
@@ -318,8 +338,14 @@ cmake -S . -B build_win_x64 -G Ninja \
   -DCMAKE_RC_COMPILER=x86_64-w64-mingw32-windres \
   -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
   -DCMAKE_SHARED_LINKER_FLAGS="-static-libgcc -static-libstdc++ -static -lpthread" \
+  -DINTERPROCEDURAL_OPTIMIZATION=OFF \
   -DJPH_SAMPLES=OFF -DJPH_TESTS=OFF \
-  -DJPH_USE_DX12=OFF -DJPH_USE_DXC=OFF
+  -DJPH_USE_DX12=OFF -DJPH_USE_DXC=OFF \
+  -DJPH_USE_VK=ON \
+  -DVulkan_INCLUDE_DIR="$WIN_VULKAN_SDK/Include" \
+  -DVulkan_LIBRARY="$WIN_VULKAN_SDK/Lib/vulkan-1.lib" \
+  -DVulkan_GLSLC_EXECUTABLE="$MAC_VULKAN_SDK/bin/glslc" \
+  -DVulkan_GLSLANG_VALIDATOR_EXECUTABLE="$MAC_VULKAN_SDK/bin/glslangValidator"
 cmake --build build_win_x64 --parallel
 
 echo ">>> Windows x86"
