@@ -723,23 +723,22 @@ typedef float JPH_CollidePointCollectorCallback(void* context, const JPH_Collide
 typedef float JPH_CollideShapeCollectorCallback(void* context, const JPH_CollideShapeResult* result);
 typedef float JPH_CastShapeCollectorCallback(void* context, const JPH_ShapeCastResult* result);
 
-typedef struct JPH_CollisionEstimationResultImpulse {
-	float	contactImpulse;
-	float	frictionImpulse1;
-	float	frictionImpulse2;
-} JPH_CollisionEstimationResultImpulse;
-
 typedef struct JPH_CollisionEstimationResult {
 	JPH_Vec3								linearVelocity1;
 	JPH_Vec3								angularVelocity1;
 	JPH_Vec3								linearVelocity2;
 	JPH_Vec3								angularVelocity2;
 
+	JPH_Vec3								frictionPoint;
 	JPH_Vec3								tangent1;
 	JPH_Vec3								tangent2;
 
-	uint32_t								impulseCount;
-	JPH_CollisionEstimationResultImpulse* impulses;
+	float									frictionImpulse1;
+	float									frictionImpulse2;
+	float									angularFrictionImpulse;
+
+	uint32_t								contactImpulseCount;
+	float*									contactImpulses;
 } JPH_CollisionEstimationResult;
 
 typedef struct JPH_BodyActivationListener           JPH_BodyActivationListener;
@@ -994,12 +993,13 @@ typedef struct JPH_CharacterVirtualContact {
 	float							fraction;
 	JPH_MotionType					motionTypeB;
 	bool							isSensorB;
-	const JPH_CharacterVirtual* characterB;
+	const JPH_CharacterVirtual*		characterB;
 	uint64_t						userData;
-	const JPH_PhysicsMaterial* material;
+	const JPH_PhysicsMaterial*		material;
 	bool							hadCollision;
 	bool							wasDiscarded;
 	bool							canPushCharacter;
+	bool							isBackFacingContact;
 } JPH_CharacterVirtualContact;
 
 typedef void(JPH_API_CALL* JPH_TraceFunc)(const char* message);
@@ -1044,6 +1044,7 @@ JPH_CAPI void JPH_JobSystem_Destroy(JPH_JobSystem* jobSystem);
 
 /* TempAllocator */
 JPH_CAPI JPH_TempAllocator* JPH_TempAllocator_Create(uint32_t size);
+JPH_CAPI JPH_TempAllocator* JPH_TempAllocatorMalloc_Create(void);
 JPH_CAPI void JPH_TempAllocator_Destroy(JPH_TempAllocator* allocator);
 
 JPH_CAPI bool JPH_Init(void);
@@ -2520,28 +2521,20 @@ typedef struct JPH_CharacterContactListener_Procs {
 
 	bool(JPH_API_CALL* OnContactValidate)(void* userData,
 		const JPH_CharacterVirtual* character,
-		const JPH_BodyID bodyID2,
-		const JPH_SubShapeID subShapeID2);
+		const JPH_CharacterVirtualContact* contact);
 
 	bool(JPH_API_CALL* OnCharacterContactValidate)(void* userData,
 		const JPH_CharacterVirtual* character,
-		const JPH_CharacterVirtual* otherCharacter,
-		const JPH_SubShapeID subShapeID2);
+		const JPH_CharacterVirtualContact* contact);
 
 	void(JPH_API_CALL* OnContactAdded)(void* userData,
 		const JPH_CharacterVirtual* character,
-		const JPH_BodyID bodyID2,
-		const JPH_SubShapeID subShapeID2,
-		const JPH_RVec3* contactPosition,
-		const JPH_Vec3* contactNormal,
+		const JPH_CharacterVirtualContact* contact,
 		JPH_CharacterContactSettings* ioSettings);
 
 	void(JPH_API_CALL* OnContactPersisted)(void* userData,
 		const JPH_CharacterVirtual* character,
-		const JPH_BodyID bodyID2,
-		const JPH_SubShapeID subShapeID2,
-		const JPH_RVec3* contactPosition,
-		const JPH_Vec3* contactNormal,
+		const JPH_CharacterVirtualContact* contact,
 		JPH_CharacterContactSettings* ioSettings);
 
 	void(JPH_API_CALL* OnContactRemoved)(void* userData,
@@ -2551,18 +2544,12 @@ typedef struct JPH_CharacterContactListener_Procs {
 
 	void(JPH_API_CALL* OnCharacterContactAdded)(void* userData,
 		const JPH_CharacterVirtual* character,
-		const JPH_CharacterVirtual* otherCharacter,
-		const JPH_SubShapeID subShapeID2,
-		const JPH_RVec3* contactPosition,
-		const JPH_Vec3* contactNormal,
+		const JPH_CharacterVirtualContact* contact,
 		JPH_CharacterContactSettings* ioSettings);
 
 	void(JPH_API_CALL* OnCharacterContactPersisted)(void* userData,
 		const JPH_CharacterVirtual* character,
-		const JPH_CharacterVirtual* otherCharacter,
-		const JPH_SubShapeID subShapeID2,
-		const JPH_RVec3* contactPosition,
-		const JPH_Vec3* contactNormal,
+		const JPH_CharacterVirtualContact* contact,
 		JPH_CharacterContactSettings* ioSettings);
 
 	void(JPH_API_CALL* OnCharacterContactRemoved)(void* userData,
@@ -3172,13 +3159,6 @@ JPH_CAPI float JPH_LinearCurve_GetValue(const JPH_LinearCurve* curve, float x);
 JPH_CAPI uint32_t JPH_LinearCurve_GetPointCount(const JPH_LinearCurve* curve);
 JPH_CAPI void JPH_LinearCurve_GetPoint(const JPH_LinearCurve* curve, uint32_t index, JPH_Point* result);
 JPH_CAPI void JPH_LinearCurve_GetPoints(const JPH_LinearCurve* curve, JPH_Point* points, uint32_t* count);
-
-/* Temp Allocator */
-typedef struct JPH_TempAllocator JPH_TempAllocator;
-
-JPH_CAPI JPH_TempAllocator* JPH_TempAllocator_Create(uint32_t size);
-JPH_CAPI JPH_TempAllocator* JPH_TempAllocatorMalloc_Create(void);
-JPH_CAPI void JPH_TempAllocator_Destroy(JPH_TempAllocator* allocator);
 
 /* Explicit Allocator Variants */
 JPH_CAPI JPH_PhysicsUpdateError JPH_PhysicsSystem_Update2(JPH_PhysicsSystem* system, float deltaTime, int collisionSteps, JPH_TempAllocator* tempAllocator, JPH_JobSystem* jobSystem);

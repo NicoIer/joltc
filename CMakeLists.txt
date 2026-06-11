@@ -128,6 +128,7 @@ option(ENABLE_OBJECT_STREAM "Compile the ObjectStream class and RTTI attribute i
 
 option(JPH_INSTALL "Install target" ${JPH_MASTER_PROJECT})
 option(JPH_SAMPLES "Build samples" ${JPH_MASTER_PROJECT})
+option(JPH_VIEWER_GRAPHICS "Build jolt_viewer C bindings for Jolt's Vulkan/Metal TestFramework renderer when available" ON)
 
 # Define standard configurations (Debug, Release, Distribution)
 set(CMAKE_CONFIGURATION_TYPES "Debug;Release;Distribution")
@@ -176,6 +177,93 @@ else()
 endif()
 
 FetchContent_MakeAvailable(JoltPhysics)
+
+cmake_path(GET JoltPhysics_SOURCE_DIR PARENT_PATH JOLTC_JOLT_PHYSICS_ROOT)
+
+set(JPH_VIEWER_GRAPHICS_AVAILABLE OFF)
+set(JOLTC_VIEWER_GRAPHICS_PLATFORM_SUPPORTED ON)
+if (IOS OR TVOS OR WATCHOS OR ANDROID OR EMSCRIPTEN)
+	set(JOLTC_VIEWER_GRAPHICS_PLATFORM_SUPPORTED OFF)
+endif()
+
+if (JPH_VIEWER_GRAPHICS AND JOLTC_VIEWER_GRAPHICS_PLATFORM_SUPPORTED)
+	set(_JOLTC_SAVED_PHYSICS_REPO_ROOT "${PHYSICS_REPO_ROOT}")
+	set(_JOLTC_SAVED_JPH_USE_VK "${JPH_USE_VK}")
+	set(_JOLTC_SAVED_JPH_USE_DX12 "${JPH_USE_DX12}")
+	set(_JOLTC_SAVED_JPH_USE_MTL "${JPH_USE_MTL}")
+	set(_JOLTC_VIEWER_USE_VK OFF)
+	set(_JOLTC_VIEWER_USE_DX12 OFF)
+	set(_JOLTC_VIEWER_USE_MTL OFF)
+
+	if (JPH_USE_VK)
+		find_package(Vulkan)
+		if (Vulkan_FOUND AND Vulkan_GLSLC_EXECUTABLE)
+			set(_JOLTC_VIEWER_USE_VK ON)
+		else()
+			set(JPH_USE_VK OFF)
+		endif()
+	endif()
+
+	if (WIN32 AND JPH_USE_DX12)
+		set(_JOLTC_VIEWER_USE_DX12 ON)
+	endif()
+
+	if (APPLE AND JPH_USE_MTL)
+		execute_process(
+			COMMAND xcrun -sdk macosx metal -v
+			RESULT_VARIABLE _JOLTC_METAL_RESULT
+			OUTPUT_QUIET
+			ERROR_QUIET
+		)
+		if (_JOLTC_METAL_RESULT EQUAL 0)
+			set(_JOLTC_VIEWER_USE_MTL ON)
+		else()
+			set(JPH_USE_MTL OFF)
+		endif()
+	endif()
+
+	set(_JOLTC_VIEWER_HAS_BACKEND OFF)
+	if (_JOLTC_VIEWER_USE_VK OR _JOLTC_VIEWER_USE_DX12 OR _JOLTC_VIEWER_USE_MTL)
+		set(_JOLTC_VIEWER_HAS_BACKEND ON)
+	endif()
+
+	set(PHYSICS_REPO_ROOT "${JOLTC_JOLT_PHYSICS_ROOT}")
+	if (_JOLTC_VIEWER_HAS_BACKEND AND NOT TARGET TestFramework)
+		include("${JOLTC_JOLT_PHYSICS_ROOT}/TestFramework/TestFramework.cmake")
+	endif()
+	set(PHYSICS_REPO_ROOT "${_JOLTC_SAVED_PHYSICS_REPO_ROOT}")
+	set(JPH_USE_VK "${_JOLTC_SAVED_JPH_USE_VK}")
+	set(JPH_USE_DX12 "${_JOLTC_SAVED_JPH_USE_DX12}")
+	set(JPH_USE_MTL "${_JOLTC_SAVED_JPH_USE_MTL}")
+
+	if (TARGET TestFramework AND _JOLTC_VIEWER_HAS_BACKEND)
+		set(JPH_VIEWER_GRAPHICS_AVAILABLE ON)
+		if (_JOLTC_VIEWER_USE_MTL)
+			foreach(_JOLTC_MTL_SHADER
+				FontShader.metal
+				LineShader.metal
+				TriangleShader.metal
+				UIShader.metal
+			)
+				set(_JOLTC_MTL_AIR "${CMAKE_CURRENT_BINARY_DIR}/joltc_viewer_metal/${_JOLTC_MTL_SHADER}.air")
+				set(_JOLTC_MTL_SOURCE "${JOLTC_JOLT_PHYSICS_ROOT}/Assets/Shaders/MTL/${_JOLTC_MTL_SHADER}")
+				add_custom_command(OUTPUT "${_JOLTC_MTL_AIR}"
+					COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/joltc_viewer_metal/ModuleCache"
+					COMMAND xcrun -sdk macosx metal -fmodules-cache-path="${CMAKE_CURRENT_BINARY_DIR}/joltc_viewer_metal/ModuleCache" -mmacosx-version-min=${CMAKE_OSX_DEPLOYMENT_TARGET} -c "${_JOLTC_MTL_SOURCE}" -o "${_JOLTC_MTL_AIR}"
+					DEPENDS "${_JOLTC_MTL_SOURCE}"
+					COMMENT "Compiling ${_JOLTC_MTL_SOURCE}")
+				list(APPEND _JOLTC_MTL_AIRS "${_JOLTC_MTL_AIR}")
+			endforeach()
+
+			set(JOLTC_VIEWER_METAL_LIB "${CMAKE_CURRENT_BINARY_DIR}/joltc_viewer_metal/Shaders.metallib")
+			add_custom_command(OUTPUT "${JOLTC_VIEWER_METAL_LIB}"
+				COMMAND xcrun -sdk macosx metallib -o "${JOLTC_VIEWER_METAL_LIB}" ${_JOLTC_MTL_AIRS}
+				DEPENDS ${_JOLTC_MTL_AIRS}
+				COMMENT "Linking Metal shaders")
+			add_custom_target(joltc_viewer_metal_shaders DEPENDS "${JOLTC_VIEWER_METAL_LIB}")
+		endif()
+	endif()
+endif()
 
 if (XCODE)
 	# Ensure that we enable SSE4.2 for the x86_64 build, XCode builds multiple architectures
@@ -318,9 +406,12 @@ endif ()
 
 set(SOURCE_FILES
 	${CMAKE_CURRENT_SOURCE_DIR}/include/joltc.h
+	${CMAKE_CURRENT_SOURCE_DIR}/include/jolt_viewer.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/joltc.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/joltc_assert.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/joltc.c
+	${CMAKE_CURRENT_SOURCE_DIR}/src/jolt_viewer.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/src/jolt_viewer.c
 )
 
 if (JPH_BUILD_SHARED)
@@ -358,6 +449,15 @@ target_include_directories(${TARGET_NAME} PUBLIC
 )
 target_link_libraries(${TARGET_NAME} PRIVATE Jolt)
 
+if (JPH_VIEWER_GRAPHICS_AVAILABLE)
+	target_compile_definitions(${TARGET_NAME} PRIVATE JPH_VIEWER_WITH_TEST_FRAMEWORK=1)
+	target_link_libraries(${TARGET_NAME} PRIVATE TestFramework)
+	set_target_properties(${TARGET_NAME} PROPERTIES DISABLE_PRECOMPILE_HEADERS ON)
+	if (TARGET joltc_viewer_metal_shaders)
+		add_dependencies(${TARGET_NAME} joltc_viewer_metal_shaders)
+	endif()
+endif()
+
 if (MSVC)
     # Debug information
 	target_compile_options(${TARGET_NAME} PRIVATE $<$<CONFIG:Debug>:/Zi>)
@@ -388,7 +488,9 @@ endif ()
 
 if (JPH_INSTALL)
 	install(
-		FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/joltc.h
+		FILES
+			${CMAKE_CURRENT_SOURCE_DIR}/include/joltc.h
+			${CMAKE_CURRENT_SOURCE_DIR}/include/jolt_viewer.h
 		DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/Jolt
 	)
 
