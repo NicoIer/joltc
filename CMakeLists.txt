@@ -407,12 +407,20 @@ endif ()
 set(SOURCE_FILES
 	${CMAKE_CURRENT_SOURCE_DIR}/include/joltc.h
 	${CMAKE_CURRENT_SOURCE_DIR}/include/jolt_viewer.h
+	${CMAKE_CURRENT_SOURCE_DIR}/include/joltc_conversions.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/joltc.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/joltc_assert.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/joltc.c
 	${CMAKE_CURRENT_SOURCE_DIR}/src/jolt_viewer.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/jolt_viewer.c
 )
+
+if (APPLE AND NOT IOS AND NOT TVOS AND NOT WATCHOS)
+	list(APPEND SOURCE_FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/jolt_viewer_macos.mm)
+	set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/src/jolt_viewer_macos.mm PROPERTIES
+		LANGUAGE CXX
+		COMPILE_FLAGS "-x objective-c++")
+endif()
 
 if (JPH_BUILD_SHARED)
 	add_library(${TARGET_NAME} SHARED ${SOURCE_FILES})
@@ -491,6 +499,7 @@ if (JPH_INSTALL)
 		FILES
 			${CMAKE_CURRENT_SOURCE_DIR}/include/joltc.h
 			${CMAKE_CURRENT_SOURCE_DIR}/include/jolt_viewer.h
+			${CMAKE_CURRENT_SOURCE_DIR}/include/joltc_conversions.h
 		DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/Jolt
 	)
 

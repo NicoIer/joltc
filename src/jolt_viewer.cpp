@@ -23,6 +23,8 @@
 #include <Window/ApplicationWindowWin.h>
 #elif defined(JPH_PLATFORM_LINUX)
 #include <Window/ApplicationWindowLinux.h>
+#include <X11/Xlib.h>
+#include <X11/keysym.h>
 #elif defined(JPH_PLATFORM_MACOS)
 #include <Window/ApplicationWindowMacOS.h>
 #endif
@@ -30,6 +32,7 @@
 
 #include <chrono>
 #include <cstdio>
+#include <cstring>
 
 #ifdef JPH_DEBUG_RENDERER
 
@@ -119,6 +122,33 @@ private:
 
 #ifdef JPH_VIEWER_WITH_TEST_FRAMEWORK
 
+enum ViewerCameraKey
+{
+	ViewerCameraKey_Forward,
+	ViewerCameraKey_Back,
+	ViewerCameraKey_Left,
+	ViewerCameraKey_Right,
+	ViewerCameraKey_Up,
+	ViewerCameraKey_Down,
+	ViewerCameraKey_Fast,
+	ViewerCameraKey_Slow,
+	ViewerCameraKey_Count,
+};
+
+#if defined(JPH_PLATFORM_MACOS)
+struct JoltCViewer_MacOSInputState
+{
+	bool keys[ViewerCameraKey_Count];
+	bool rightMouseDown;
+	bool focusRequested;
+	float mouseDeltaX;
+	float mouseDeltaY;
+	float wheelDelta;
+};
+
+extern bool JoltCViewer_MacOSPollEvents(JoltCViewer_MacOSInputState* state);
+#endif
+
 class ViewerWindow final :
 #ifdef JPH_PLATFORM_WINDOWS
 	public ApplicationWindowWin
@@ -138,6 +168,314 @@ public:
 		if (height > 0)
 			mWindowHeight = height;
 	}
+
+	void Initialize(const char* title) override
+	{
+#if defined(JPH_PLATFORM_WINDOWS)
+		ApplicationWindowWin::Initialize(title);
+#elif defined(JPH_PLATFORM_LINUX)
+		ApplicationWindowLinux::Initialize(title);
+#elif defined(JPH_PLATFORM_MACOS)
+		ApplicationWindowMacOS::Initialize(title);
+#endif
+#if defined(JPH_PLATFORM_LINUX)
+		Display* display = GetDisplay();
+		if (display != nullptr)
+		{
+			XSelectInput(display, GetWindow(),
+				ExposureMask |
+				StructureNotifyMask |
+				KeyPressMask |
+				KeyReleaseMask |
+				ButtonPressMask |
+				ButtonReleaseMask |
+				PointerMotionMask);
+		}
+#endif
+	}
+
+	bool PollEvents()
+	{
+#ifdef JPH_PLATFORM_WINDOWS
+		MSG msg = {};
+		while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
+		{
+			HandleWindowsMessage(msg);
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+
+			if (msg.message == WM_QUIT)
+				mShouldClose = true;
+		}
+#elif defined(JPH_PLATFORM_LINUX)
+		Display* display = GetDisplay();
+		if (display == nullptr)
+			return false;
+
+		while (XPending(display) > 0)
+		{
+			XEvent event;
+			XNextEvent(display, &event);
+
+			if (event.type == ClientMessage && static_cast<Atom>(event.xclient.data.l[0]) == mWmDeleteWindow)
+			{
+				mShouldClose = true;
+			}
+			else if (event.type == ConfigureNotify)
+			{
+				XConfigureEvent xce = event.xconfigure;
+				if (xce.width != mWindowWidth || xce.height != mWindowHeight)
+					OnWindowResized(xce.width, xce.height);
+			}
+			else
+			{
+				HandleLinuxEvent(event);
+			}
+
+			if (event.type != KeyPress && event.type != KeyRelease && event.type != ButtonPress && event.type != ButtonRelease && event.type != MotionNotify && mEventListener)
+				mEventListener(event);
+		}
+#elif defined(JPH_PLATFORM_MACOS)
+		JoltCViewer_MacOSInputState state{};
+		memcpy(state.keys, mKeys, sizeof(mKeys));
+		state.rightMouseDown = mRightMouseDown;
+		if (!JoltCViewer_MacOSPollEvents(&state))
+			mShouldClose = true;
+		memcpy(mKeys, state.keys, sizeof(mKeys));
+		mRightMouseDown = state.rightMouseDown;
+		mFocusRequested = mFocusRequested || state.focusRequested;
+		mMouseDeltaX += state.mouseDeltaX;
+		mMouseDeltaY += state.mouseDeltaY;
+		mWheelDelta += state.wheelDelta;
+#endif
+
+		return !mShouldClose;
+	}
+
+	bool IsKeyDown(ViewerCameraKey key) const
+	{
+		return mKeys[key];
+	}
+
+	bool IsRightMouseDown() const
+	{
+		return mRightMouseDown;
+	}
+
+	void ConsumeMouseDelta(float& deltaX, float& deltaY)
+	{
+		deltaX = mMouseDeltaX;
+		deltaY = mMouseDeltaY;
+		mMouseDeltaX = 0.0f;
+		mMouseDeltaY = 0.0f;
+	}
+
+	float ConsumeWheelDelta()
+	{
+		float delta = mWheelDelta;
+		mWheelDelta = 0.0f;
+		return delta;
+	}
+
+	bool ConsumeFocusRequested()
+	{
+		bool requested = mFocusRequested;
+		mFocusRequested = false;
+		return requested;
+	}
+
+	bool ShouldClose() const
+	{
+		return mShouldClose;
+	}
+
+	void RequestClose()
+	{
+		mShouldClose = true;
+	}
+
+private:
+#ifdef JPH_PLATFORM_WINDOWS
+	static int GetMouseX(LPARAM lParam)
+	{
+		return static_cast<short>(lParam & 0xffff);
+	}
+
+	static int GetMouseY(LPARAM lParam)
+	{
+		return static_cast<short>((lParam >> 16) & 0xffff);
+	}
+
+	void HandleWindowsMessage(const MSG& msg)
+	{
+		switch (msg.message)
+		{
+		case WM_KEYDOWN:
+		case WM_SYSKEYDOWN:
+			SetKey(static_cast<unsigned>(msg.wParam), true);
+			break;
+		case WM_KEYUP:
+		case WM_SYSKEYUP:
+			SetKey(static_cast<unsigned>(msg.wParam), false);
+			break;
+		case WM_RBUTTONDOWN:
+			mRightMouseDown = true;
+			mHasMousePosition = true;
+			mLastMouseX = GetMouseX(msg.lParam);
+			mLastMouseY = GetMouseY(msg.lParam);
+			SetCapture(GetWindowHandle());
+			break;
+		case WM_RBUTTONUP:
+			mRightMouseDown = false;
+			ReleaseCapture();
+			break;
+		case WM_MOUSEMOVE:
+		{
+			int x = GetMouseX(msg.lParam);
+			int y = GetMouseY(msg.lParam);
+			if (mHasMousePosition && mRightMouseDown)
+			{
+				mMouseDeltaX += static_cast<float>(x - mLastMouseX);
+				mMouseDeltaY += static_cast<float>(y - mLastMouseY);
+			}
+			mLastMouseX = x;
+			mLastMouseY = y;
+			mHasMousePosition = true;
+			break;
+		}
+		case WM_MOUSEWHEEL:
+			mWheelDelta += static_cast<float>(static_cast<short>((msg.wParam >> 16) & 0xffff)) / static_cast<float>(WHEEL_DELTA);
+			break;
+		default:
+			break;
+		}
+	}
+
+	void SetKey(unsigned key, bool down)
+	{
+		switch (key)
+		{
+		case 'W': mKeys[ViewerCameraKey_Forward] = down; break;
+		case 'S': mKeys[ViewerCameraKey_Back] = down; break;
+		case 'A': mKeys[ViewerCameraKey_Left] = down; break;
+		case 'D': mKeys[ViewerCameraKey_Right] = down; break;
+		case 'E': mKeys[ViewerCameraKey_Up] = down; break;
+		case 'Q': mKeys[ViewerCameraKey_Down] = down; break;
+		case VK_SHIFT:
+		case VK_LSHIFT:
+		case VK_RSHIFT:
+			mKeys[ViewerCameraKey_Fast] = down;
+			break;
+		case VK_CONTROL:
+		case VK_LCONTROL:
+		case VK_RCONTROL:
+		case VK_MENU:
+		case VK_LMENU:
+		case VK_RMENU:
+			mKeys[ViewerCameraKey_Slow] = down;
+			break;
+		case 'F':
+			if (down)
+				mFocusRequested = true;
+			break;
+		default:
+			break;
+		}
+	}
+#endif
+
+#ifdef JPH_PLATFORM_LINUX
+	void HandleLinuxEvent(const XEvent& event)
+	{
+		switch (event.type)
+		{
+		case KeyPress:
+		case KeyRelease:
+			SetLinuxKey(XLookupKeysym(const_cast<XKeyEvent*>(&event.xkey), 0), event.type == KeyPress);
+			break;
+		case ButtonPress:
+			if (event.xbutton.button == Button3)
+			{
+				mRightMouseDown = true;
+				mHasMousePosition = true;
+				mLastMouseX = event.xbutton.x;
+				mLastMouseY = event.xbutton.y;
+			}
+			else if (event.xbutton.button == Button4)
+			{
+				mWheelDelta += 1.0f;
+			}
+			else if (event.xbutton.button == Button5)
+			{
+				mWheelDelta -= 1.0f;
+			}
+			break;
+		case ButtonRelease:
+			if (event.xbutton.button == Button3)
+				mRightMouseDown = false;
+			break;
+		case MotionNotify:
+			if (mHasMousePosition && mRightMouseDown)
+			{
+				mMouseDeltaX += static_cast<float>(event.xmotion.x - mLastMouseX);
+				mMouseDeltaY += static_cast<float>(event.xmotion.y - mLastMouseY);
+			}
+			mLastMouseX = event.xmotion.x;
+			mLastMouseY = event.xmotion.y;
+			mHasMousePosition = true;
+			break;
+		default:
+			break;
+		}
+	}
+
+	void SetLinuxKey(KeySym key, bool down)
+	{
+		switch (key)
+		{
+		case XK_w:
+		case XK_W: mKeys[ViewerCameraKey_Forward] = down; break;
+		case XK_s:
+		case XK_S: mKeys[ViewerCameraKey_Back] = down; break;
+		case XK_a:
+		case XK_A: mKeys[ViewerCameraKey_Left] = down; break;
+		case XK_d:
+		case XK_D: mKeys[ViewerCameraKey_Right] = down; break;
+		case XK_e:
+		case XK_E: mKeys[ViewerCameraKey_Up] = down; break;
+		case XK_q:
+		case XK_Q: mKeys[ViewerCameraKey_Down] = down; break;
+		case XK_Shift_L:
+		case XK_Shift_R:
+			mKeys[ViewerCameraKey_Fast] = down;
+			break;
+		case XK_Control_L:
+		case XK_Control_R:
+		case XK_Alt_L:
+		case XK_Alt_R:
+			mKeys[ViewerCameraKey_Slow] = down;
+			break;
+		case XK_f:
+		case XK_F:
+			if (down)
+				mFocusRequested = true;
+			break;
+		default:
+			break;
+		}
+	}
+#endif
+
+	bool mKeys[ViewerCameraKey_Count] = {};
+	bool mRightMouseDown = false;
+	bool mFocusRequested = false;
+	bool mShouldClose = false;
+	bool mHasMousePosition = false;
+	int mLastMouseX = 0;
+	int mLastMouseY = 0;
+	float mMouseDeltaX = 0.0f;
+	float mMouseDeltaY = 0.0f;
+	float mWheelDelta = 0.0f;
 };
 
 #endif
@@ -160,6 +498,13 @@ struct JPH_Viewer
 	DebugRendererImp* debugRenderer = nullptr;
 	CameraState camera;
 	float worldScale = 1.0f;
+	bool cameraInputEnabled = true;
+	float cameraMoveSpeed = 20.0f;
+	float cameraLookSpeed = 0.5f;
+	float cameraFastMultiplier = 10.0f;
+	float cameraSlowMultiplier = 0.04f;
+	RVec3 cameraFocusTarget = RVec3::sZero();
+	float cameraFocusDistance = 10.0f;
 #endif
 };
 
@@ -217,6 +562,59 @@ static inline void SetCameraLookAt(CameraState& camera, const JPH_RVec3& positio
 	if (abs(camera.mForward.Dot(up)) > 0.99f)
 		up = Vec3(0.0f, 0.0f, 1.0f);
 	camera.mUp = up;
+}
+
+static inline void FocusCamera(CameraState& camera, RVec3Arg target, float distance)
+{
+	camera.mPos = target - distance * camera.mForward;
+}
+
+static inline void UpdateCameraInput(JPH_Viewer* viewer, float deltaTime)
+{
+	if (viewer == nullptr || viewer->window == nullptr || !viewer->cameraInputEnabled)
+		return;
+
+	float mouse_delta_x = 0.0f;
+	float mouse_delta_y = 0.0f;
+	viewer->window->ConsumeMouseDelta(mouse_delta_x, mouse_delta_y);
+	float wheel_delta = viewer->window->ConsumeWheelDelta();
+
+	if (viewer->window->ConsumeFocusRequested())
+		FocusCamera(viewer->camera, viewer->cameraFocusTarget, viewer->cameraFocusDistance);
+
+	float heading = ATan2(viewer->camera.mForward.GetZ(), viewer->camera.mForward.GetX());
+	float pitch = ATan2(viewer->camera.mForward.GetY(), Vec3(viewer->camera.mForward.GetX(), 0.0f, viewer->camera.mForward.GetZ()).Length());
+
+	if (viewer->window->IsRightMouseDown())
+	{
+		heading += DegreesToRadians(mouse_delta_x * viewer->cameraLookSpeed);
+		pitch = Clamp(pitch - DegreesToRadians(mouse_delta_y * viewer->cameraLookSpeed), -0.49f * JPH_PI, 0.49f * JPH_PI);
+		viewer->camera.mForward = Vec3(Cos(pitch) * Cos(heading), Sin(pitch), Cos(pitch) * Sin(heading));
+	}
+
+	Vec3 right = viewer->camera.mForward.Cross(Vec3(0.0f, 1.0f, 0.0f)).NormalizedOr(Vec3(1.0f, 0.0f, 0.0f));
+	viewer->camera.mUp = right.Cross(viewer->camera.mForward).NormalizedOr(Vec3(0.0f, 1.0f, 0.0f));
+
+	float speed = viewer->cameraMoveSpeed * viewer->worldScale * deltaTime;
+	if (viewer->window->IsKeyDown(ViewerCameraKey_Fast))
+		speed *= viewer->cameraFastMultiplier;
+	if (viewer->window->IsKeyDown(ViewerCameraKey_Slow))
+		speed *= viewer->cameraSlowMultiplier;
+
+	if (viewer->window->IsKeyDown(ViewerCameraKey_Forward))
+		viewer->camera.mPos += speed * viewer->camera.mForward;
+	if (viewer->window->IsKeyDown(ViewerCameraKey_Back))
+		viewer->camera.mPos -= speed * viewer->camera.mForward;
+	if (viewer->window->IsKeyDown(ViewerCameraKey_Right))
+		viewer->camera.mPos += speed * right;
+	if (viewer->window->IsKeyDown(ViewerCameraKey_Left))
+		viewer->camera.mPos -= speed * right;
+	if (viewer->window->IsKeyDown(ViewerCameraKey_Up))
+		viewer->camera.mPos += speed * Vec3(0.0f, 1.0f, 0.0f);
+	if (viewer->window->IsKeyDown(ViewerCameraKey_Down))
+		viewer->camera.mPos -= speed * Vec3(0.0f, 1.0f, 0.0f);
+	if (wheel_delta != 0.0f)
+		viewer->camera.mPos += wheel_delta * viewer->cameraMoveSpeed * viewer->worldScale * 0.25f * viewer->camera.mForward;
 }
 
 static Renderer* CreateGpuRenderer(JPH_ViewerBackend backend)
@@ -288,6 +686,10 @@ static JPH_Viewer* CreateWindowedViewer(const JPH_ViewerSettings* settings, JPH_
 	viewer->font = font;
 	viewer->debugRenderer = new DebugRendererImp(renderer, viewer->font);
 	viewer->worldScale = settings->worldScale > 0.0f ? settings->worldScale : 1.0f;
+	viewer->cameraFocusTarget = ToJolt(settings->cameraTarget);
+	viewer->cameraFocusDistance = (ToJolt(settings->cameraPosition) - ToJolt(settings->cameraTarget)).Length();
+	if (viewer->cameraFocusDistance <= 0.0f)
+		viewer->cameraFocusDistance = 10.0f;
 	SetCameraLookAt(viewer->camera, settings->cameraPosition, settings->cameraTarget);
 	return viewer;
 }
@@ -417,12 +819,67 @@ void JPH_Viewer_SetCameraLookAt(JPH_Viewer* viewer, const JPH_RVec3* position, c
 
 #ifdef JPH_VIEWER_WITH_TEST_FRAMEWORK
 	if (viewer->kind == ViewerKind::Windowed)
+	{
+		viewer->cameraFocusTarget = ToJolt(target);
+		viewer->cameraFocusDistance = (ToJolt(position) - ToJolt(target)).Length();
+		if (viewer->cameraFocusDistance <= 0.0f)
+			viewer->cameraFocusDistance = 10.0f;
 		SetCameraLookAt(viewer->camera, *position, *target);
+	}
 #endif
 #else
 	JPH_UNUSED(viewer);
 	JPH_UNUSED(position);
 	JPH_UNUSED(target);
+#endif
+}
+
+void JPH_Viewer_SetCameraInputEnabled(JPH_Viewer* viewer, bool enabled)
+{
+#if defined(JPH_DEBUG_RENDERER) && defined(JPH_VIEWER_WITH_TEST_FRAMEWORK)
+	if (viewer != nullptr && viewer->kind == ViewerKind::Windowed)
+		viewer->cameraInputEnabled = enabled;
+#else
+	JPH_UNUSED(viewer);
+	JPH_UNUSED(enabled);
+#endif
+}
+
+void JPH_Viewer_SetCameraMoveSpeed(JPH_Viewer* viewer, float speed)
+{
+#if defined(JPH_DEBUG_RENDERER) && defined(JPH_VIEWER_WITH_TEST_FRAMEWORK)
+	if (viewer != nullptr && viewer->kind == ViewerKind::Windowed && speed > 0.0f)
+		viewer->cameraMoveSpeed = speed;
+#else
+	JPH_UNUSED(viewer);
+	JPH_UNUSED(speed);
+#endif
+}
+
+void JPH_Viewer_SetCameraLookSpeed(JPH_Viewer* viewer, float degreesPerPixel)
+{
+#if defined(JPH_DEBUG_RENDERER) && defined(JPH_VIEWER_WITH_TEST_FRAMEWORK)
+	if (viewer != nullptr && viewer->kind == ViewerKind::Windowed && degreesPerPixel > 0.0f)
+		viewer->cameraLookSpeed = degreesPerPixel;
+#else
+	JPH_UNUSED(viewer);
+	JPH_UNUSED(degreesPerPixel);
+#endif
+}
+
+void JPH_Viewer_FocusCamera(JPH_Viewer* viewer, const JPH_RVec3* target, float distance)
+{
+#if defined(JPH_DEBUG_RENDERER) && defined(JPH_VIEWER_WITH_TEST_FRAMEWORK)
+	if (viewer == nullptr || viewer->kind != ViewerKind::Windowed || target == nullptr)
+		return;
+
+	viewer->cameraFocusTarget = ToJolt(target);
+	viewer->cameraFocusDistance = distance > 0.0f ? distance : 10.0f;
+	FocusCamera(viewer->camera, viewer->cameraFocusTarget, viewer->cameraFocusDistance);
+#else
+	JPH_UNUSED(viewer);
+	JPH_UNUSED(target);
+	JPH_UNUSED(distance);
 #endif
 }
 
@@ -444,10 +901,10 @@ void JPH_Viewer_Clear(JPH_Viewer* viewer)
 bool JPH_Viewer_RenderFrame(JPH_Viewer* viewer, float deltaTime)
 {
 #if defined(JPH_DEBUG_RENDERER) && defined(JPH_VIEWER_WITH_TEST_FRAMEWORK)
-	JPH_UNUSED(deltaTime);
-
-	if (viewer == nullptr || viewer->kind != ViewerKind::Windowed || viewer->renderer == nullptr || viewer->debugRenderer == nullptr)
+	if (viewer == nullptr || viewer->kind != ViewerKind::Windowed || viewer->renderer == nullptr || viewer->debugRenderer == nullptr || viewer->window == nullptr || viewer->window->ShouldClose())
 		return false;
+
+	UpdateCameraInput(viewer, deltaTime);
 
 	if (!viewer->renderer->BeginFrame(viewer->camera, viewer->worldScale))
 		return true;
@@ -462,6 +919,34 @@ bool JPH_Viewer_RenderFrame(JPH_Viewer* viewer, float deltaTime)
 	JPH_UNUSED(viewer);
 	JPH_UNUSED(deltaTime);
 	return false;
+#endif
+}
+
+bool JPH_Viewer_PollEvents(JPH_Viewer* viewer)
+{
+#if defined(JPH_DEBUG_RENDERER) && defined(JPH_VIEWER_WITH_TEST_FRAMEWORK)
+	if (viewer == nullptr)
+		return false;
+	if (viewer->kind != ViewerKind::Windowed)
+		return true;
+	return viewer->window != nullptr && viewer->window->PollEvents();
+#else
+	JPH_UNUSED(viewer);
+	return false;
+#endif
+}
+
+bool JPH_Viewer_ShouldClose(const JPH_Viewer* viewer)
+{
+#if defined(JPH_DEBUG_RENDERER) && defined(JPH_VIEWER_WITH_TEST_FRAMEWORK)
+	if (viewer == nullptr)
+		return true;
+	if (viewer->kind != ViewerKind::Windowed)
+		return false;
+	return viewer->window == nullptr || viewer->window->ShouldClose();
+#else
+	JPH_UNUSED(viewer);
+	return true;
 #endif
 }
 
@@ -482,6 +967,7 @@ void JPH_Viewer_Run(JPH_Viewer* viewer, JPH_ViewerFrameCallback callback, void* 
 
 		return JPH_Viewer_RenderFrame(viewer, delta.count());
 	});
+	viewer->window->RequestClose();
 #else
 	JPH_UNUSED(viewer);
 	JPH_UNUSED(callback);
