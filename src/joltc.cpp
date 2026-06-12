@@ -291,10 +291,10 @@ static inline void FromJolt(const DMat44& matrix, JPH_RMat4* result)
 	Vec4 column2 = matrix.GetColumn4(2);
 	DVec3 translation = matrix.GetTranslation();
 
-	result->column[0] = FromJolt(column0);
-	result->column[1] = FromJolt(column1);
-	result->column[2] = FromJolt(column2);
-	result->column3 = FromJolt(translation);
+	result->Column0 = FromJolt(column0);
+	result->Column1 = FromJolt(column1);
+	result->Column2 = FromJolt(column2);
+	result->Column3 = FromJolt(translation);
 }
 #endif /* defined(JPH_DOUBLE_PRECISION) */
 
@@ -433,10 +433,10 @@ static inline JPH::Mat44 ToJolt(const JPH_Mat4* matrix)
 static inline JPH::RMat44 ToJolt(const JPH_RMat4* matrix)
 {
 	JPH::RMat44 result{};
-	result.SetColumn4(0, ToJolt(matrix->column[0]));
-	result.SetColumn4(1, ToJolt(matrix->column[1]));
-	result.SetColumn4(2, ToJolt(matrix->column[2]));
-	result.SetTranslation(ToJolt(matrix->column3));
+	result.SetColumn4(0, ToJolt(matrix->Column0));
+	result.SetColumn4(1, ToJolt(matrix->Column1));
+	result.SetColumn4(2, ToJolt(matrix->Column2));
+	result.SetTranslation(ToJolt(matrix->Column3));
 	return result;
 }
 #endif /* defined(JPH_DOUBLE_PRECISION) */

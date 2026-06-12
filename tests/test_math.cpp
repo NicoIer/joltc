@@ -347,26 +347,27 @@ TEST_F(MathTest, Mat4_Identity) {
     JPH_Mat4_Identity(&result);
 
     // Check diagonal is 1
-    EXPECT_FLOAT_EQ(result.column[0].x, 1.0f);
-    EXPECT_FLOAT_EQ(result.column[1].y, 1.0f);
-    EXPECT_FLOAT_EQ(result.column[2].z, 1.0f);
-    EXPECT_FLOAT_EQ(result.column[3].w, 1.0f);
+    EXPECT_FLOAT_EQ(result.Column0.x, 1.0f);
+    EXPECT_FLOAT_EQ(result.Column1.y, 1.0f);
+    EXPECT_FLOAT_EQ(result.Column2.z, 1.0f);
+    EXPECT_FLOAT_EQ(result.Column3.w, 1.0f);
 
     // Check off-diagonal is 0
-    EXPECT_FLOAT_EQ(result.column[0].y, 0.0f);
-    EXPECT_FLOAT_EQ(result.column[0].z, 0.0f);
-    EXPECT_FLOAT_EQ(result.column[0].w, 0.0f);
+    EXPECT_FLOAT_EQ(result.Column0.y, 0.0f);
+    EXPECT_FLOAT_EQ(result.Column0.z, 0.0f);
+    EXPECT_FLOAT_EQ(result.Column0.w, 0.0f);
 }
 
 TEST_F(MathTest, Mat4_Zero) {
     JPH_Mat4 result;
     JPH_Mat4_Zero(&result);
 
-    for (int i = 0; i < 4; i++) {
-        EXPECT_FLOAT_EQ(result.column[i].x, 0.0f);
-        EXPECT_FLOAT_EQ(result.column[i].y, 0.0f);
-        EXPECT_FLOAT_EQ(result.column[i].z, 0.0f);
-        EXPECT_FLOAT_EQ(result.column[i].w, 0.0f);
+    const JPH_Vec4 columns[] = { result.Column0, result.Column1, result.Column2, result.Column3 };
+    for (const JPH_Vec4& column : columns) {
+        EXPECT_FLOAT_EQ(column.x, 0.0f);
+        EXPECT_FLOAT_EQ(column.y, 0.0f);
+        EXPECT_FLOAT_EQ(column.z, 0.0f);
+        EXPECT_FLOAT_EQ(column.w, 0.0f);
     }
 }
 
@@ -376,15 +377,15 @@ TEST_F(MathTest, Mat4_Translation) {
     JPH_Mat4_Translation(&result, &translation);
 
     // Check translation column
-    EXPECT_FLOAT_EQ(result.column[3].x, 1.0f);
-    EXPECT_FLOAT_EQ(result.column[3].y, 2.0f);
-    EXPECT_FLOAT_EQ(result.column[3].z, 3.0f);
-    EXPECT_FLOAT_EQ(result.column[3].w, 1.0f);
+    EXPECT_FLOAT_EQ(result.Column3.x, 1.0f);
+    EXPECT_FLOAT_EQ(result.Column3.y, 2.0f);
+    EXPECT_FLOAT_EQ(result.Column3.z, 3.0f);
+    EXPECT_FLOAT_EQ(result.Column3.w, 1.0f);
 
     // Check identity part
-    EXPECT_FLOAT_EQ(result.column[0].x, 1.0f);
-    EXPECT_FLOAT_EQ(result.column[1].y, 1.0f);
-    EXPECT_FLOAT_EQ(result.column[2].z, 1.0f);
+    EXPECT_FLOAT_EQ(result.Column0.x, 1.0f);
+    EXPECT_FLOAT_EQ(result.Column1.y, 1.0f);
+    EXPECT_FLOAT_EQ(result.Column2.z, 1.0f);
 }
 
 TEST_F(MathTest, Mat4_Scale) {
@@ -392,10 +393,10 @@ TEST_F(MathTest, Mat4_Scale) {
     JPH_Mat4 result;
     JPH_Mat4_Scale(&result, &scale);
 
-    EXPECT_FLOAT_EQ(result.column[0].x, 2.0f);
-    EXPECT_FLOAT_EQ(result.column[1].y, 3.0f);
-    EXPECT_FLOAT_EQ(result.column[2].z, 4.0f);
-    EXPECT_FLOAT_EQ(result.column[3].w, 1.0f);
+    EXPECT_FLOAT_EQ(result.Column0.x, 2.0f);
+    EXPECT_FLOAT_EQ(result.Column1.y, 3.0f);
+    EXPECT_FLOAT_EQ(result.Column2.z, 4.0f);
+    EXPECT_FLOAT_EQ(result.Column3.w, 1.0f);
 }
 
 TEST_F(MathTest, Mat4_Rotation) {
@@ -404,10 +405,10 @@ TEST_F(MathTest, Mat4_Rotation) {
     JPH_Mat4_Rotation(&result, &q);
 
     // Should be identity matrix
-    EXPECT_NEAR(result.column[0].x, 1.0f, EPSILON);
-    EXPECT_NEAR(result.column[1].y, 1.0f, EPSILON);
-    EXPECT_NEAR(result.column[2].z, 1.0f, EPSILON);
-    EXPECT_NEAR(result.column[3].w, 1.0f, EPSILON);
+    EXPECT_NEAR(result.Column0.x, 1.0f, EPSILON);
+    EXPECT_NEAR(result.Column1.y, 1.0f, EPSILON);
+    EXPECT_NEAR(result.Column2.z, 1.0f, EPSILON);
+    EXPECT_NEAR(result.Column3.w, 1.0f, EPSILON);
 }
 
 TEST_F(MathTest, Mat4_Multiply) {
@@ -417,10 +418,10 @@ TEST_F(MathTest, Mat4_Multiply) {
     JPH_Mat4_Multiply(&m1, &m2, &result);
 
     // Identity * Identity = Identity
-    EXPECT_NEAR(result.column[0].x, 1.0f, EPSILON);
-    EXPECT_NEAR(result.column[1].y, 1.0f, EPSILON);
-    EXPECT_NEAR(result.column[2].z, 1.0f, EPSILON);
-    EXPECT_NEAR(result.column[3].w, 1.0f, EPSILON);
+    EXPECT_NEAR(result.Column0.x, 1.0f, EPSILON);
+    EXPECT_NEAR(result.Column1.y, 1.0f, EPSILON);
+    EXPECT_NEAR(result.Column2.z, 1.0f, EPSILON);
+    EXPECT_NEAR(result.Column3.w, 1.0f, EPSILON);
 }
 
 TEST_F(MathTest, Mat4_Add) {
@@ -430,10 +431,10 @@ TEST_F(MathTest, Mat4_Add) {
     JPH_Mat4_Add(&m1, &m2, &result);
 
     // Identity + Identity should have 2 on diagonal
-    EXPECT_FLOAT_EQ(result.column[0].x, 2.0f);
-    EXPECT_FLOAT_EQ(result.column[1].y, 2.0f);
-    EXPECT_FLOAT_EQ(result.column[2].z, 2.0f);
-    EXPECT_FLOAT_EQ(result.column[3].w, 2.0f);
+    EXPECT_FLOAT_EQ(result.Column0.x, 2.0f);
+    EXPECT_FLOAT_EQ(result.Column1.y, 2.0f);
+    EXPECT_FLOAT_EQ(result.Column2.z, 2.0f);
+    EXPECT_FLOAT_EQ(result.Column3.w, 2.0f);
 }
 
 TEST_F(MathTest, Mat4_Subtract) {
@@ -443,11 +444,12 @@ TEST_F(MathTest, Mat4_Subtract) {
     JPH_Mat4_Subtract(&m1, &m2, &result);
 
     // Identity - Identity = Zero
-    for (int i = 0; i < 4; i++) {
-        EXPECT_FLOAT_EQ(result.column[i].x, 0.0f);
-        EXPECT_FLOAT_EQ(result.column[i].y, 0.0f);
-        EXPECT_FLOAT_EQ(result.column[i].z, 0.0f);
-        EXPECT_FLOAT_EQ(result.column[i].w, 0.0f);
+    const JPH_Vec4 columns[] = { result.Column0, result.Column1, result.Column2, result.Column3 };
+    for (const JPH_Vec4& column : columns) {
+        EXPECT_FLOAT_EQ(column.x, 0.0f);
+        EXPECT_FLOAT_EQ(column.y, 0.0f);
+        EXPECT_FLOAT_EQ(column.z, 0.0f);
+        EXPECT_FLOAT_EQ(column.w, 0.0f);
     }
 }
 
@@ -456,21 +458,21 @@ TEST_F(MathTest, Mat4_MultiplyScalar) {
     JPH_Mat4_Identity(&m);
     JPH_Mat4_MultiplyScalar(&m, 2.0f, &result);
 
-    EXPECT_FLOAT_EQ(result.column[0].x, 2.0f);
-    EXPECT_FLOAT_EQ(result.column[1].y, 2.0f);
-    EXPECT_FLOAT_EQ(result.column[2].z, 2.0f);
-    EXPECT_FLOAT_EQ(result.column[3].w, 2.0f);
+    EXPECT_FLOAT_EQ(result.Column0.x, 2.0f);
+    EXPECT_FLOAT_EQ(result.Column1.y, 2.0f);
+    EXPECT_FLOAT_EQ(result.Column2.z, 2.0f);
+    EXPECT_FLOAT_EQ(result.Column3.w, 2.0f);
 }
 
 TEST_F(MathTest, Mat4_Transposed) {
     JPH_Mat4 m, result;
     JPH_Mat4_Identity(&m);
-    m.column[0].y = 1.0f; // Set [1,0] to 1
+    m.Column0.y = 1.0f; // Set [1,0] to 1
 
     JPH_Mat4_Transposed(&m, &result);
 
     // After transpose, [0,1] should be 1
-    EXPECT_FLOAT_EQ(result.column[1].x, 1.0f);
+    EXPECT_FLOAT_EQ(result.Column1.x, 1.0f);
 }
 
 TEST_F(MathTest, Mat4_GetAxisX) {
@@ -538,14 +540,14 @@ TEST_F(MathTest, Mat4_RotationTranslation) {
     JPH_Mat4_RotationTranslation(&result, &q, &translation);
 
     // Check translation
-    EXPECT_FLOAT_EQ(result.column[3].x, 1.0f);
-    EXPECT_FLOAT_EQ(result.column[3].y, 2.0f);
-    EXPECT_FLOAT_EQ(result.column[3].z, 3.0f);
+    EXPECT_FLOAT_EQ(result.Column3.x, 1.0f);
+    EXPECT_FLOAT_EQ(result.Column3.y, 2.0f);
+    EXPECT_FLOAT_EQ(result.Column3.z, 3.0f);
 
     // Check rotation part is identity
-    EXPECT_NEAR(result.column[0].x, 1.0f, EPSILON);
-    EXPECT_NEAR(result.column[1].y, 1.0f, EPSILON);
-    EXPECT_NEAR(result.column[2].z, 1.0f, EPSILON);
+    EXPECT_NEAR(result.Column0.x, 1.0f, EPSILON);
+    EXPECT_NEAR(result.Column1.y, 1.0f, EPSILON);
+    EXPECT_NEAR(result.Column2.z, 1.0f, EPSILON);
 }
 
 // ============================================================================

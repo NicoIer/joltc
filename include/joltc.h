@@ -471,7 +471,10 @@ typedef struct JPH_Plane {
 } JPH_Plane;
 
 typedef struct JPH_Mat4 {
-	JPH_Vec4 column[4];
+	JPH_Vec4 Column0;
+	JPH_Vec4 Column1;
+	JPH_Vec4 Column2;
+	JPH_Vec4 Column3;
 } JPH_Mat4;
 
 typedef struct JPH_Point {
@@ -487,8 +490,10 @@ typedef struct JPH_RVec3 {
 } JPH_RVec3;
 
 typedef struct JPH_RMat4 {
-	JPH_Vec4 column[3];
-	JPH_RVec3 column3;
+	JPH_Vec4 Column0;
+	JPH_Vec4 Column1;
+	JPH_Vec4 Column2;
+	JPH_RVec3 Column3;
 } JPH_RMat4;
 #else
 typedef JPH_Vec3 JPH_RVec3;
