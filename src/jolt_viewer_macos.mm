@@ -2,6 +2,7 @@
 // Licensed under the MIT License (MIT). See LICENSE in the repository root for more information.
 
 #import <AppKit/AppKit.h>
+#include <unordered_map>
 
 enum
 {
@@ -26,21 +27,17 @@ struct JoltCViewer_MacOSInputState
 	float wheelDelta;
 };
 
-static void JoltCViewer_SetMacOSKey(JoltCViewer_MacOSInputState* state, NSString* characters, bool down)
+static void JoltCViewer_SetMacOSKey(JoltCViewer_MacOSInputState* state, unsigned short keyCode, bool down)
 {
-	if (characters.length == 0)
-		return;
-
-	unichar key = [[characters lowercaseString] characterAtIndex:0];
-	switch (key)
+	switch (keyCode)
 	{
-	case 'w': state->keys[ViewerCameraKey_Forward] = down; break;
-	case 's': state->keys[ViewerCameraKey_Back] = down; break;
-	case 'a': state->keys[ViewerCameraKey_Left] = down; break;
-	case 'd': state->keys[ViewerCameraKey_Right] = down; break;
-	case 'e': state->keys[ViewerCameraKey_Up] = down; break;
-	case 'q': state->keys[ViewerCameraKey_Down] = down; break;
-	case 'f':
+	case 0x0D: state->keys[ViewerCameraKey_Forward] = down; break; // W
+	case 0x01: state->keys[ViewerCameraKey_Back] = down; break;    // S
+	case 0x00: state->keys[ViewerCameraKey_Left] = down; break;    // A
+	case 0x02: state->keys[ViewerCameraKey_Right] = down; break;   // D
+	case 0x0E: state->keys[ViewerCameraKey_Up] = down; break;      // E
+	case 0x0C: state->keys[ViewerCameraKey_Down] = down; break;    // Q
+	case 0x03:                                                       // F
 		if (down)
 			state->focusRequested = true;
 		break;
@@ -55,13 +52,86 @@ static void JoltCViewer_UpdateMacOSModifiers(JoltCViewer_MacOSInputState* state,
 	state->keys[ViewerCameraKey_Slow] = (flags & (NSEventModifierFlagControl | NSEventModifierFlagOption)) != 0;
 }
 
-bool JoltCViewer_MacOSPollEvents(JoltCViewer_MacOSInputState* state)
+static std::unordered_map<NSWindow*, JoltCViewer_MacOSInputState> sWindowInputStates;
+
+static void JoltCViewer_FocusMacOSWindow(NSEvent* event)
+{
+	NSWindow* window = event.window;
+	if (window == nil)
+		return;
+
+	[window makeKeyWindow];
+	NSView* contentView = window.contentView;
+	if (contentView != nil && [contentView acceptsFirstResponder])
+		[window makeFirstResponder:contentView];
+}
+
+static NSWindow* JoltCViewer_GetEventWindow(NSApplication* app, NSEvent* event)
+{
+	NSWindow* window = event.window;
+	return window != nil ? window : app.keyWindow;
+}
+
+static void JoltCViewer_HandleMacOSEvent(NSApplication* app, NSEvent* event)
+{
+	NSWindow* window = JoltCViewer_GetEventWindow(app, event);
+	if (window == nil)
+		return;
+
+	JoltCViewer_MacOSInputState& state = sWindowInputStates[window];
+
+	switch (event.type)
+	{
+	case NSEventTypeKeyDown:
+		if (!event.isARepeat)
+			JoltCViewer_SetMacOSKey(&state, event.keyCode, true);
+		break;
+	case NSEventTypeKeyUp:
+		JoltCViewer_SetMacOSKey(&state, event.keyCode, false);
+		break;
+	case NSEventTypeFlagsChanged:
+		JoltCViewer_UpdateMacOSModifiers(&state, event.modifierFlags);
+		break;
+	case NSEventTypeLeftMouseDown:
+	case NSEventTypeOtherMouseDown:
+		JoltCViewer_FocusMacOSWindow(event);
+		break;
+	case NSEventTypeRightMouseDown:
+		JoltCViewer_FocusMacOSWindow(event);
+		state.rightMouseDown = true;
+		break;
+	case NSEventTypeRightMouseUp:
+		state.rightMouseDown = false;
+		break;
+	case NSEventTypeRightMouseDragged:
+		if (state.rightMouseDown)
+		{
+			state.mouseDeltaX += event.deltaX;
+			state.mouseDeltaY += event.deltaY;
+		}
+		break;
+	case NSEventTypeScrollWheel:
+		state.wheelDelta += event.scrollingDeltaY * 0.1f;
+		break;
+	default:
+		break;
+	}
+}
+
+bool JoltCViewer_MacOSPollEvents(void* nativeView, JoltCViewer_MacOSInputState* state)
 {
 	@autoreleasepool
 	{
+		NSView* view = (NSView*)nativeView;
+		NSWindow* targetWindow = view != nil ? view.window : nil;
 		NSApplication* app = [NSApplication sharedApplication];
+		static bool sAppInitialized = false;
+		if (!sAppInitialized)
+		{
+			[app setActivationPolicy:NSApplicationActivationPolicyRegular];
+			sAppInitialized = true;
+		}
 		[app finishLaunching];
-		JoltCViewer_UpdateMacOSModifiers(state, [NSEvent modifierFlags]);
 
 		for (;;)
 		{
@@ -72,49 +142,26 @@ bool JoltCViewer_MacOSPollEvents(JoltCViewer_MacOSInputState* state)
 			if (event == nil)
 				break;
 
-			switch (event.type)
-			{
-			case NSEventTypeKeyDown:
-				if (!event.isARepeat)
-					JoltCViewer_SetMacOSKey(state, event.charactersIgnoringModifiers, true);
-				break;
-			case NSEventTypeKeyUp:
-				JoltCViewer_SetMacOSKey(state, event.charactersIgnoringModifiers, false);
-				break;
-			case NSEventTypeFlagsChanged:
-				JoltCViewer_UpdateMacOSModifiers(state, event.modifierFlags);
-				break;
-			case NSEventTypeRightMouseDown:
-				state->rightMouseDown = true;
-				break;
-			case NSEventTypeRightMouseUp:
-				state->rightMouseDown = false;
-				break;
-			case NSEventTypeRightMouseDragged:
-				if (state->rightMouseDown)
-				{
-					state->mouseDeltaX += event.deltaX;
-					state->mouseDeltaY += event.deltaY;
-				}
-				break;
-			case NSEventTypeScrollWheel:
-				state->wheelDelta += event.scrollingDeltaY * 0.1f;
-				break;
-			default:
-				break;
-			}
-
+			JoltCViewer_HandleMacOSEvent(app, event);
 			[app sendEvent:event];
 		}
 
 		[app updateWindows];
 
-		for (NSWindow* window in [app windows])
+		if (targetWindow != nil)
 		{
-			if ([window isVisible])
-				return true;
+			JoltCViewer_MacOSInputState& windowState = sWindowInputStates[targetWindow];
+			*state = windowState;
+			state->mouseDeltaX = windowState.mouseDeltaX;
+			state->mouseDeltaY = windowState.mouseDeltaY;
+			state->wheelDelta = windowState.wheelDelta;
+			JoltCViewer_UpdateMacOSModifiers(state, [NSEvent modifierFlags]);
+			windowState.mouseDeltaX = 0.0f;
+			windowState.mouseDeltaY = 0.0f;
+			windowState.wheelDelta = 0.0f;
+			windowState.focusRequested = false;
 		}
 
-		return false;
+		return targetWindow != nil && [targetWindow isVisible];
 	}
 }

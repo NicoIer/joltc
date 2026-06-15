@@ -146,7 +146,7 @@ struct JoltCViewer_MacOSInputState
 	float wheelDelta;
 };
 
-extern bool JoltCViewer_MacOSPollEvents(JoltCViewer_MacOSInputState* state);
+extern bool JoltCViewer_MacOSPollEvents(void* nativeView, JoltCViewer_MacOSInputState* state);
 #endif
 
 class ViewerWindow final :
@@ -239,8 +239,8 @@ public:
 		JoltCViewer_MacOSInputState state{};
 		memcpy(state.keys, mKeys, sizeof(mKeys));
 		state.rightMouseDown = mRightMouseDown;
-		if (!JoltCViewer_MacOSPollEvents(&state))
-			mShouldClose = true;
+			if (!JoltCViewer_MacOSPollEvents(GetMetalView(), &state))
+				mShouldClose = true;
 		memcpy(mKeys, state.keys, sizeof(mKeys));
 		mRightMouseDown = state.rightMouseDown;
 		mFocusRequested = mFocusRequested || state.focusRequested;
