@@ -396,7 +396,7 @@ static inline const JPH_PhysicsMaterial* FromJolt(const JPH::PhysicsMaterial* jo
 	return joltMaterial != nullptr ? ToPhysicsMaterial(joltMaterial) : nullptr;
 }
 
-static inline void FromJolt(const CharacterVirtual::Contact& jolt, JPH_CharacterVirtualContact* result)
+static inline void FromJolt(const CharacterContact& jolt, JPH_CharacterContact* result)
 {
 	result->hash = jolt.GetHash();
 	result->bodyB = (JPH_BodyID)jolt.mBodyB.GetIndexAndSequenceNumber();
@@ -416,6 +416,7 @@ static inline void FromJolt(const CharacterVirtual::Contact& jolt, JPH_Character
 	result->hadCollision = jolt.mHadCollision;
 	result->wasDiscarded = jolt.mWasDiscarded;
 	result->canPushCharacter = jolt.mCanPushCharacter;
+	result->isBackFacingContact = jolt.mIsBackFacingContact;
 }
 
 static inline void FromJolt(const Skeleton::Joint& jolt, JPH_SkeletonJoint* result)
@@ -846,9 +847,9 @@ JPH_CAPI void JPH_CollideShapeResult_FreeMembers(JPH_CollideShapeResult* result)
 
 void JPH_CollisionEstimationResult_FreeMembers(JPH_CollisionEstimationResult* result)
 {
-	if (result->impulseCount)
+	if (result->contactImpulseCount)
 	{
-		free(result->impulses);
+		free(result->contactImpulses);
 	}
 }
 
@@ -8844,7 +8845,7 @@ uint32_t JPH_CharacterVirtual_GetNumActiveContacts(JPH_CharacterVirtual* charact
 	return (uint32_t)AsCharacterVirtual(character)->GetActiveContacts().size();
 }
 
-void JPH_CharacterVirtual_GetActiveContact(JPH_CharacterVirtual* character, uint32_t index, JPH_CharacterVirtualContact* result)
+void JPH_CharacterVirtual_GetActiveContact(JPH_CharacterVirtual* character, uint32_t index, JPH_CharacterContact* result)
 {
 	FromJolt(AsCharacterVirtual(character)->GetActiveContacts().at(index), result);
 }
@@ -8898,45 +8899,46 @@ public:
 		}
 	}
 
-	bool OnContactValidate(const CharacterVirtual* inCharacter, const BodyID& inBodyID2, const SubShapeID& inSubShapeID2) override
+	bool OnContactValidate(const CharacterVirtual* inCharacter, const CharacterContact& inContact) override
 	{
 		if (s_Procs != nullptr && s_Procs->OnContactValidate)
 		{
+			JPH_CharacterContact contact;
+			FromJolt(inContact, &contact);
+
 			return s_Procs->OnContactValidate(
 				userData,
 				ToCharacterVirtual(inCharacter),
-				(JPH_BodyID)inBodyID2.GetIndexAndSequenceNumber(),
-				(JPH_SubShapeID)inSubShapeID2.GetValue()
+				&contact
 			);
 		}
 
 		return true;
 	}
 
-	bool OnCharacterContactValidate(const CharacterVirtual* inCharacter, const CharacterVirtual* inOtherCharacter, const SubShapeID& inSubShapeID2)  override
+	bool OnCharacterContactValidate(const CharacterVirtual* inCharacter, const CharacterContact& inContact) override
 	{
 		if (s_Procs != nullptr && s_Procs->OnCharacterContactValidate)
 		{
+			JPH_CharacterContact contact;
+			FromJolt(inContact, &contact);
+
 			return s_Procs->OnCharacterContactValidate(
 				userData,
 				ToCharacterVirtual(inCharacter),
-				ToCharacterVirtual(inOtherCharacter),
-				(JPH_SubShapeID)inSubShapeID2.GetValue()
+				&contact
 			);
 		}
 
 		return true;
 	}
 
-	void OnContactAdded(const CharacterVirtual* inCharacter, const BodyID& inBodyID2, const SubShapeID& inSubShapeID2, RVec3Arg inContactPosition, Vec3Arg inContactNormal, CharacterContactSettings& ioSettings) override
+	void OnContactAdded(const CharacterVirtual* inCharacter, const CharacterContact& inContact, CharacterContactSettings& ioSettings) override
 	{
 		if (s_Procs != nullptr && s_Procs->OnContactAdded)
 		{
-			JPH_RVec3 contactPosition;
-			JPH_Vec3 contactNormal;
-
-			FromJolt(inContactPosition, &contactPosition);
-			FromJolt(inContactNormal, &contactNormal);
+			JPH_CharacterContact contact;
+			FromJolt(inContact, &contact);
 
 			JPH_CharacterContactSettings settings = {};
 			settings.canPushCharacter = ioSettings.mCanPushCharacter;
@@ -8945,10 +8947,7 @@ public:
 			s_Procs->OnContactAdded(
 				userData,
 				ToCharacterVirtual(inCharacter),
-				(JPH_BodyID)inBodyID2.GetIndexAndSequenceNumber(),
-				(JPH_SubShapeID)inSubShapeID2.GetValue(),
-				&contactPosition,
-				&contactNormal,
+				&contact,
 				&settings
 			);
 
@@ -8957,15 +8956,12 @@ public:
 		}
 	}
 
-	void OnContactPersisted(const CharacterVirtual* inCharacter, const BodyID& inBodyID2, const SubShapeID& inSubShapeID2, RVec3Arg inContactPosition, Vec3Arg inContactNormal, CharacterContactSettings& ioSettings) override
+	void OnContactPersisted(const CharacterVirtual* inCharacter, const CharacterContact& inContact, CharacterContactSettings& ioSettings) override
 	{
 		if (s_Procs != nullptr && s_Procs->OnContactPersisted)
 		{
-			JPH_RVec3 contactPosition;
-			JPH_Vec3 contactNormal;
-
-			FromJolt(inContactPosition, &contactPosition);
-			FromJolt(inContactNormal, &contactNormal);
+			JPH_CharacterContact contact;
+			FromJolt(inContact, &contact);
 
 			JPH_CharacterContactSettings settings = {};
 			settings.canPushCharacter = ioSettings.mCanPushCharacter;
@@ -8974,10 +8970,7 @@ public:
 			s_Procs->OnContactPersisted(
 				userData,
 				ToCharacterVirtual(inCharacter),
-				(JPH_BodyID)inBodyID2.GetIndexAndSequenceNumber(),
-				(JPH_SubShapeID)inSubShapeID2.GetValue(),
-				&contactPosition,
-				&contactNormal,
+				&contact,
 				&settings
 			);
 
@@ -8999,15 +8992,12 @@ public:
 		}
 	}
 
-	void OnCharacterContactAdded(const CharacterVirtual* inCharacter, const CharacterVirtual* inOtherCharacter, const SubShapeID& inSubShapeID2, RVec3Arg inContactPosition, Vec3Arg inContactNormal, CharacterContactSettings& ioSettings) override
+	void OnCharacterContactAdded(const CharacterVirtual* inCharacter, const CharacterContact& inContact, CharacterContactSettings& ioSettings) override
 	{
 		if (s_Procs != nullptr && s_Procs->OnCharacterContactAdded)
 		{
-			JPH_RVec3 contactPosition;
-			JPH_Vec3 contactNormal;
-
-			FromJolt(inContactPosition, &contactPosition);
-			FromJolt(inContactNormal, &contactNormal);
+			JPH_CharacterContact contact;
+			FromJolt(inContact, &contact);
 
 			JPH_CharacterContactSettings settings = {};
 			settings.canPushCharacter = ioSettings.mCanPushCharacter;
@@ -9016,10 +9006,7 @@ public:
 			s_Procs->OnCharacterContactAdded(
 				userData,
 				ToCharacterVirtual(inCharacter),
-				ToCharacterVirtual(inOtherCharacter),
-				(JPH_SubShapeID)inSubShapeID2.GetValue(),
-				&contactPosition,
-				&contactNormal,
+				&contact,
 				&settings
 			);
 
@@ -9028,15 +9015,12 @@ public:
 		}
 	}
 
-	void OnCharacterContactPersisted(const CharacterVirtual* inCharacter, const CharacterVirtual* inOtherCharacter, const SubShapeID& inSubShapeID2, RVec3Arg inContactPosition, Vec3Arg inContactNormal, CharacterContactSettings& ioSettings) override
+	void OnCharacterContactPersisted(const CharacterVirtual* inCharacter, const CharacterContact& inContact, CharacterContactSettings& ioSettings) override
 	{
 		if (s_Procs != nullptr && s_Procs->OnCharacterContactPersisted)
 		{
-			JPH_RVec3 contactPosition;
-			JPH_Vec3 contactNormal;
-
-			FromJolt(inContactPosition, &contactPosition);
-			FromJolt(inContactNormal, &contactNormal);
+			JPH_CharacterContact contact;
+			FromJolt(inContact, &contact);
 
 			JPH_CharacterContactSettings settings = {};
 			settings.canPushCharacter = ioSettings.mCanPushCharacter;
@@ -9045,10 +9029,7 @@ public:
 			s_Procs->OnCharacterContactPersisted(
 				userData,
 				ToCharacterVirtual(inCharacter),
-				ToCharacterVirtual(inOtherCharacter),
-				(JPH_SubShapeID)inSubShapeID2.GetValue(),
-				&contactPosition,
-				&contactNormal,
+				&contact,
 				&settings
 			);
 
@@ -10213,19 +10194,25 @@ void JPH_EstimateCollisionResponse(const JPH_Body* body1, const JPH_Body* body2,
 	FromJolt(joltResult.mAngularVelocity1, &result->angularVelocity1);
 	FromJolt(joltResult.mLinearVelocity2, &result->linearVelocity2);
 	FromJolt(joltResult.mAngularVelocity2, &result->angularVelocity2);
+
+	FromJolt(joltResult.mFrictionPoint, &result->frictionPoint);
 	FromJolt(joltResult.mTangent1, &result->tangent1);
 	FromJolt(joltResult.mTangent2, &result->tangent2);
 
-	if (!joltResult.mImpulses.empty())
+	result->frictionImpulse1 = joltResult.mFrictionImpulse1;
+	result->frictionImpulse2 = joltResult.mFrictionImpulse2;
+	result->angularFrictionImpulse = joltResult.mAngularFrictionImpulse;
+
+	if (!joltResult.mContactImpulse.empty())
 	{
-		result->impulseCount = static_cast<uint32_t>(joltResult.mImpulses.size());
-		result->impulses = (JPH_CollisionEstimationResultImpulse*)malloc(sizeof(JPH_CollisionEstimationResultImpulse) * joltResult.mImpulses.size());
-		for (uint32_t i = 0; i < result->impulseCount; i++)
-		{
-			result->impulses[i].contactImpulse = joltResult.mImpulses[i].mContactImpulse;
-			result->impulses[i].frictionImpulse1 = joltResult.mImpulses[i].mFrictionImpulse1;
-			result->impulses[i].frictionImpulse2 = joltResult.mImpulses[i].mFrictionImpulse2;
-		}
+		result->contactImpulseCount = static_cast<uint32_t>(joltResult.mContactImpulse.size());
+		result->contactImpulses = (float*)malloc(sizeof(float) * joltResult.mContactImpulse.size());
+		memcpy(result->contactImpulses, joltResult.mContactImpulse.data(), sizeof(float) * joltResult.mContactImpulse.size());
+	}
+	else
+	{
+		result->contactImpulseCount = 0;
+		result->contactImpulses = nullptr;
 	}
 }
 
