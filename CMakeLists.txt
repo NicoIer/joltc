@@ -478,6 +478,14 @@ target_link_libraries(${TARGET_NAME} PRIVATE Jolt)
 if (JPH_VIEWER_GRAPHICS_AVAILABLE)
 	target_compile_definitions(${TARGET_NAME} PRIVATE JPH_VIEWER_WITH_TEST_FRAMEWORK=1)
 	target_link_libraries(${TARGET_NAME} PRIVATE TestFramework)
+	if (APPLE)
+		# TestFramework's macOS window uses MTKView for every graphics backend,
+		# including Vulkan, so these frameworks are required even with Metal disabled.
+		target_link_libraries(${TARGET_NAME} PRIVATE
+			"-framework Metal"
+			"-framework MetalKit"
+		)
+	endif()
 	set_target_properties(${TARGET_NAME} PROPERTIES DISABLE_PRECOMPILE_HEADERS ON)
 	if (TARGET joltc_viewer_metal_shaders)
 		add_dependencies(${TARGET_NAME} joltc_viewer_metal_shaders)

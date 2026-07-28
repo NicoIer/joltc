@@ -45,9 +45,11 @@ git submodule add https://github.com/jrouwe/JoltPhysics.git
 # Apple Silicon + x86_64 Universal Binary
 cmake -S . -B build_osx -G Ninja \
   -DCMAKE_BUILD_TYPE=Distribution \
-  -DCMAKE_OSX_ARCHITECTURES="x86_64;arm64" \
-  -DCMAKE_OSX_DEPLOYMENT_TARGET=11
-cmake --build build_osx --config Distribution --parallel
+  '-DCMAKE_OSX_ARCHITECTURES=x86_64;arm64' \
+  -DCMAKE_OSX_DEPLOYMENT_TARGET=11 \
+  -DJPH_USE_MTL=OFF
+
+cmake --build build_osx --parallel
 ```
 
 产物: `build_osx/lib/libjoltc.dylib`
