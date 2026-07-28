@@ -239,8 +239,8 @@ public:
 		JoltCViewer_MacOSInputState state{};
 		memcpy(state.keys, mKeys, sizeof(mKeys));
 		state.rightMouseDown = mRightMouseDown;
-			if (!JoltCViewer_MacOSPollEvents(GetMetalView(), &state))
-				mShouldClose = true;
+		if (!JoltCViewer_MacOSPollEvents(GetMetalView(), &state))
+			mShouldClose = true;
 		memcpy(mKeys, state.keys, sizeof(mKeys));
 		mRightMouseDown = state.rightMouseDown;
 		mFocusRequested = mFocusRequested || state.focusRequested;

@@ -54,11 +54,32 @@ static void JoltCViewer_UpdateMacOSModifiers(JoltCViewer_MacOSInputState* state,
 
 static std::unordered_map<NSWindow*, JoltCViewer_MacOSInputState> sWindowInputStates;
 
+static void JoltCViewer_ClearMacOSInputState(JoltCViewer_MacOSInputState& state)
+{
+	for (bool& key : state.keys)
+		key = false;
+	state.rightMouseDown = false;
+	state.focusRequested = false;
+	state.mouseDeltaX = 0.0f;
+	state.mouseDeltaY = 0.0f;
+	state.wheelDelta = 0.0f;
+}
+
 static void JoltCViewer_FocusMacOSWindow(NSEvent* event)
 {
 	NSWindow* window = event.window;
 	if (window == nil)
 		return;
+
+	NSWindow* previousKeyWindow = [NSApplication sharedApplication].keyWindow;
+	if (previousKeyWindow != nil && previousKeyWindow != window)
+	{
+		for (auto& pair : sWindowInputStates)
+		{
+			if (pair.first != window)
+				JoltCViewer_ClearMacOSInputState(pair.second);
+		}
+	}
 
 	[window makeKeyWindow];
 	NSView* contentView = window.contentView;
