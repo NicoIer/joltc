@@ -346,7 +346,7 @@ static inline const JPH_PhysicsMaterial* FromJolt(const JPH::PhysicsMaterial* jo
 	return joltMaterial != nullptr ? ToPhysicsMaterial(joltMaterial) : nullptr;
 }
 
-static inline void FromJolt(const CharacterContact& jolt, JPH_CharacterVirtualContact* result)
+static inline void FromJolt(const CharacterContact& jolt, JPH_CharacterContact* result)
 {
 	result->hash = jolt.GetHash();
 	result->bodyB = (JPH_BodyID)jolt.mBodyB.GetIndexAndSequenceNumber();
@@ -8760,7 +8760,7 @@ uint32_t JPH_CharacterVirtual_GetNumActiveContacts(JPH_CharacterVirtual* charact
 	return (uint32_t)AsCharacterVirtual(character)->GetActiveContacts().size();
 }
 
-void JPH_CharacterVirtual_GetActiveContact(JPH_CharacterVirtual* character, uint32_t index, JPH_CharacterVirtualContact* result)
+void JPH_CharacterVirtual_GetActiveContact(JPH_CharacterVirtual* character, uint32_t index, JPH_CharacterContact* result)
 {
 	FromJolt(AsCharacterVirtual(character)->GetActiveContacts().at(index), result);
 }
@@ -8818,8 +8818,9 @@ public:
 	{
 		if (s_Procs != nullptr && s_Procs->OnContactValidate)
 		{
-			JPH_CharacterVirtualContact contact = {};
+			JPH_CharacterContact contact = {};
 			FromJolt(inContact, &contact);
+
 			return s_Procs->OnContactValidate(
 				userData,
 				ToCharacterVirtual(inCharacter),
@@ -8834,8 +8835,9 @@ public:
 	{
 		if (s_Procs != nullptr && s_Procs->OnCharacterContactValidate)
 		{
-			JPH_CharacterVirtualContact contact = {};
+			JPH_CharacterContact contact = {};
 			FromJolt(inContact, &contact);
+
 			return s_Procs->OnCharacterContactValidate(
 				userData,
 				ToCharacterVirtual(inCharacter),
@@ -8850,8 +8852,9 @@ public:
 	{
 		if (s_Procs != nullptr && s_Procs->OnContactAdded)
 		{
-			JPH_CharacterVirtualContact contact = {};
+			JPH_CharacterContact contact = {};
 			FromJolt(inContact, &contact);
+
 			JPH_CharacterContactSettings settings = {};
 			settings.canPushCharacter = ioSettings.mCanPushCharacter;
 			settings.canReceiveImpulses = ioSettings.mCanReceiveImpulses;
@@ -8872,8 +8875,9 @@ public:
 	{
 		if (s_Procs != nullptr && s_Procs->OnContactPersisted)
 		{
-			JPH_CharacterVirtualContact contact = {};
+			JPH_CharacterContact contact = {};
 			FromJolt(inContact, &contact);
+
 			JPH_CharacterContactSettings settings = {};
 			settings.canPushCharacter = ioSettings.mCanPushCharacter;
 			settings.canReceiveImpulses = ioSettings.mCanReceiveImpulses;
@@ -8907,8 +8911,9 @@ public:
 	{
 		if (s_Procs != nullptr && s_Procs->OnCharacterContactAdded)
 		{
-			JPH_CharacterVirtualContact contact = {};
+			JPH_CharacterContact contact = {};
 			FromJolt(inContact, &contact);
+
 			JPH_CharacterContactSettings settings = {};
 			settings.canPushCharacter = ioSettings.mCanPushCharacter;
 			settings.canReceiveImpulses = ioSettings.mCanReceiveImpulses;
@@ -8929,8 +8934,9 @@ public:
 	{
 		if (s_Procs != nullptr && s_Procs->OnCharacterContactPersisted)
 		{
-			JPH_CharacterVirtualContact contact = {};
+			JPH_CharacterContact contact = {};
 			FromJolt(inContact, &contact);
+
 			JPH_CharacterContactSettings settings = {};
 			settings.canPushCharacter = ioSettings.mCanPushCharacter;
 			settings.canReceiveImpulses = ioSettings.mCanReceiveImpulses;
@@ -10103,6 +10109,7 @@ void JPH_EstimateCollisionResponse(const JPH_Body* body1, const JPH_Body* body2,
 	FromJolt(joltResult.mAngularVelocity1, &result->angularVelocity1);
 	FromJolt(joltResult.mLinearVelocity2, &result->linearVelocity2);
 	FromJolt(joltResult.mAngularVelocity2, &result->angularVelocity2);
+
 	FromJolt(joltResult.mFrictionPoint, &result->frictionPoint);
 	FromJolt(joltResult.mTangent1, &result->tangent1);
 	FromJolt(joltResult.mTangent2, &result->tangent2);
@@ -10116,8 +10123,7 @@ void JPH_EstimateCollisionResponse(const JPH_Body* body1, const JPH_Body* body2,
 	if (!joltResult.mContactImpulse.empty())
 	{
 		result->contactImpulses = (float*)malloc(sizeof(float) * joltResult.mContactImpulse.size());
-		for (uint32_t i = 0; i < result->contactImpulseCount; i++)
-			result->contactImpulses[i] = joltResult.mContactImpulse[i];
+		memcpy(result->contactImpulses, joltResult.mContactImpulse.data(), sizeof(float) * joltResult.mContactImpulse.size());
 	}
 }
 
